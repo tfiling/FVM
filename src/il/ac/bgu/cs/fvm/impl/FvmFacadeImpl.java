@@ -27,12 +27,33 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <S, A, P> TransitionSystem<S, A, P> createTransitionSystem() {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement createTransitionSystem
+    	return new TransitionSystemImpl<S, A, P>();
     }
 
     @Override
     public <S, A, P> boolean isActionDeterministic(TransitionSystem<S, A, P> ts) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement isActionDeterministic
+    	  if (ts.getInitialStates().size() > 1) {
+              return false;
+          }
+
+          Set<Transition<S, A>> transitions = ts.getTransitions();
+          Transition<S, A>[] transitionsInTS = transitions.toArray(new Transition[transitions.size()]);
+
+          for (int i = 0; i < transitionsInTS.length; i++) {
+              Transition<S, A> transitionTested = transitionsInTS[i];
+
+              for (int j = i+1; j < transitionsInTS.length; j++) {
+                  Transition<S, A> transitionCompared = transitionsInTS[j];
+
+                  boolean transitionHaveSameFrom = transitionTested.getFrom().equals(transitionCompared.getFrom());
+                  boolean transitionHaveSameAction = transitionTested.getAction().equals(transitionCompared.getAction());
+                  if (transitionHaveSameFrom && transitionHaveSameAction) {
+                      return false;
+                  }
+              }
+          }
+
+          return true;    
     }
 
     @Override
