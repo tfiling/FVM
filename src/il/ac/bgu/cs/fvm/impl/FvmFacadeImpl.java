@@ -78,7 +78,8 @@ public class FvmFacadeImpl implements FvmFacade {
                      if (!postState.equals(comparedPostState)) {
                          Set<P> propositionsForComparedPostState = ts.getLabelingFunction().get(comparedPostState);
 
-                         if ((propositionsForPostState == null || propositionsForPostState.isEmpty()) && (propositionsForComparedPostState == null || propositionsForComparedPostState.isEmpty())) {
+                         if ((propositionsForPostState == null || propositionsForPostState.isEmpty()) && 
+                        		 (propositionsForComparedPostState == null || propositionsForComparedPostState.isEmpty())) {
                              return false;
                          }
 
@@ -90,7 +91,8 @@ public class FvmFacadeImpl implements FvmFacade {
              }
          }
 
-         return true;    }
+         return true;    
+    }	
 
     @Override
     public <S, A, P> boolean isExecution(TransitionSystem<S, A, P> ts, AlternatingSequence<S, A> e) {
@@ -100,6 +102,7 @@ public class FvmFacadeImpl implements FvmFacade {
     @Override
     public <S, A, P> boolean isExecutionFragment(TransitionSystem<S, A, P> ts, AlternatingSequence<S, A> e) {
     	 if (e == null || e.isEmpty() || e.tail().isEmpty()) {
+    	    	// handle the scenario where n <= 1 (non or only one state within the execution s_0)    		 
              return true;
          }
 
@@ -122,12 +125,17 @@ public class FvmFacadeImpl implements FvmFacade {
          Set<Transition<S,A>> trasitions = ts.getTransitions();
 
          for(Transition<S, A> transition : trasitions) {
-             if (transition.getFrom().equals(stateBeforeAction) && transition.getAction().equals(action) && transition.getTo().equals(stateAfterAction)) {
+             if (transition.getFrom().equals(stateBeforeAction) && 
+            		 transition.getAction().equals(action) && 
+            		 transition.getTo().equals(stateAfterAction)) {
+            	 // current link s_0, a_1, s_1 is a valid transition in the given transition system 
+            	 // recursively check if the following links (s_1, a_2, s_3 and so on) are also valid execution
                  return this.isExecutionFragment(ts, e.tail().tail());
              }
          }
 
-         return false;    }
+         return false;  // current first link s_i, a_i+1, s_i+1 was not detected as a valid transition hence this is not an execution fragment  
+    }
 
     @Override
     public <S, A, P> boolean isInitialExecutionFragment(TransitionSystem<S, A, P> ts, AlternatingSequence<S, A> e) {
@@ -145,17 +153,20 @@ public class FvmFacadeImpl implements FvmFacade {
         if (e == null || e.isEmpty()) {
             return false;
         }
-
+        
+        if (!this.isExecutionFragment(ts, e)) {
+        	//this is not a valid execution fragment
+        	return false;
+        }
         AlternatingSequence<S,A> iteratedSequence = e;
         S sequenceEndState = e.head();
-
-        while (!iteratedSequence.tail().isEmpty()) { //While there is an action after the current head
+        while (!iteratedSequence.tail().isEmpty()) { 
+        	// iterate until the last states
             iteratedSequence = iteratedSequence.tail().tail();
-
             sequenceEndState = iteratedSequence.head();
         }
 
-        return this.isExecutionFragment(ts, e) && this.isStateTerminal(ts, sequenceEndState);
+        return this.isStateTerminal(ts, sequenceEndState);
     }
 
     @Override
@@ -170,83 +181,80 @@ public class FvmFacadeImpl implements FvmFacade {
         if (!ts.getStates().contains(s)) {
             throw new StateNotFoundException(s);
         }
-
-        Set<S>postStates = new HashSet<S>();
-
+        Set<S> returnedPostStates = new HashSet<S>();
         for (Transition<S, ?> transition : transitions) {
             if (transition.getFrom().equals(s)) {
-                postStates.add(transition.getTo());
+                returnedPostStates.add(transition.getTo());
             }
         }
 
-        return postStates;
+        return returnedPostStates;
     }
 
     @Override
     public <S> Set<S> post(TransitionSystem<S, ?, ?> ts, Set<S> c) {
-        Set<S>postStates = new HashSet<S>();
+        Set<S>returnedPostStates = new HashSet<S>();
 
         for(S state : c) {
-            postStates.addAll(this.post(ts, state));
+            returnedPostStates.addAll(this.post(ts, state));
         }
 
-        return postStates;
+        return returnedPostStates;
     }
 
     @Override
     public <S, A> Set<S> post(TransitionSystem<S, A, ?> ts, S s, A a) {
-        Set<S>postStates = new HashSet<S>();
+        Set<S>returnedPostStates = new HashSet<S>();
 
         if (!ts.getStates().contains(s)) {
             throw new StateNotFoundException(s);
         }
-
         for(Transition<S, A> transition : ts.getTransitions()) {
-            if (transition.getFrom().equals(s) && transition.getAction().equals(a)) {
-                postStates.add(transition.getTo());
+            if (transition.getFrom().equals(s) && 
+            		transition.getAction().equals(a)) {
+                returnedPostStates.add(transition.getTo());
             }
         }
 
-        return postStates;
+        return returnedPostStates;
     }
 
     @Override
     public <S, A> Set<S> post(TransitionSystem<S, A, ?> ts, Set<S> c, A a) {
-        Set<S>postStates = new HashSet<S>();
+        Set<S>returnedPostStates = new HashSet<S>();
 
         for(S state : c) {
-            postStates.addAll(this.post(ts, state, a));
+            returnedPostStates.addAll(this.post(ts, state, a));
         }
 
-        return postStates;
+        return returnedPostStates;
     }
 
     @Override
     public <S> Set<S> pre(TransitionSystem<S, ?, ?> ts, S s) {
-        Set<S>preStates = new HashSet<S>();
+        Set<S>returnedPreStates = new HashSet<S>();
 
         if (!ts.getStates().contains(s)) {
             throw new StateNotFoundException(s);
         }
-
         for (Transition<S, ?> transition : ts.getTransitions()) {
             if (transition.getTo().equals(s)) {
-                preStates.add(transition.getFrom());
+                returnedPreStates.add(transition.getFrom());
             }
         }
 
-        return preStates;
+        return returnedPreStates;
     }
 
     @Override
     public <S> Set<S> pre(TransitionSystem<S, ?, ?> ts, Set<S> c) {
-        Set<S>preStates = new HashSet<S>();
+        Set<S>returnedPreStates = new HashSet<S>();
 
         for(S state : c) {
-            preStates.addAll(this.pre(ts, state));
+            returnedPreStates.addAll(this.pre(ts, state));
         }
 
-        return preStates;
+        return returnedPreStates;
     }
 
     @Override
@@ -262,30 +270,28 @@ public class FvmFacadeImpl implements FvmFacade {
 
     @Override
     public <S, A> Set<S> pre(TransitionSystem<S, A, ?> ts, S s, A a) {
-        Set<S>preStates = new HashSet<S>();
+        Set<S>returnedPreStates = new HashSet<S>();
 
         if (!ts.getStates().contains(s)) {
             throw new StateNotFoundException(s);
         }
-
         for(Transition<S, A> transition : ts.getTransitions()) {
-            if (transition.getTo().equals(s) && transition.getAction().equals(a)) {
-                preStates.add(transition.getFrom());
+            if (transition.getTo().equals(s) && 
+            		transition.getAction().equals(a)) {
+                returnedPreStates.add(transition.getFrom());
             }
         }
 
-        return preStates;
+        return returnedPreStates;
     }
 
     @Override
     public <S, A> Set<S> reach(TransitionSystem<S, A, ?> ts) {
         Set<S> reachableStates = new HashSet<S>();
-
         Set<S> currentTestedStates = ts.getInitialStates();
 
         while (!currentTestedStates.isEmpty()) {
             reachableStates.addAll(currentTestedStates);
-
             currentTestedStates = this.post(ts, currentTestedStates);
             currentTestedStates.removeAll(reachableStates);
         }

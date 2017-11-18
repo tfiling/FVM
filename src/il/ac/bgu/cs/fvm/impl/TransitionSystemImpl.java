@@ -14,248 +14,211 @@ import static il.ac.bgu.cs.fvm.exceptions.TransitionSystemPart.*;
 
 public class TransitionSystemImpl<STATE ,ACTION ,ATOMIC_PROPOSITION> implements TransitionSystem<STATE ,ACTION ,ATOMIC_PROPOSITION> {
 
-    private String name;
+	private String name;
 
-    private Set<STATE> initialStates;
-    private Set<STATE> states;
-    private Map<STATE, Set<ATOMIC_PROPOSITION>> labelingFunction;
+	private Set<STATE> initialStates;// I
 
-    private Set<ACTION> actions;
+	private Set<STATE> states;// S
 
-    private Set<Transition<STATE,ACTION>> transitions;
+	private Map<STATE, Set<ATOMIC_PROPOSITION>> labelingFunction;// L
 
-    private Set<ATOMIC_PROPOSITION> atomicPropositions;
+	private Set<ACTION> actions;// Act
 
-    public TransitionSystemImpl() {
-        this.initialStates = new HashSet<STATE>();
-        this.states = new HashSet<STATE>();
-        this.labelingFunction = new HashMap<STATE, Set<ATOMIC_PROPOSITION>>();
+	private Set<Transition<STATE,ACTION>> transitions;// -> 
 
-        this.actions = new HashSet<ACTION>();
+	private Set<ATOMIC_PROPOSITION> atomicPropositions;// AP
 
-        this.transitions = new HashSet<Transition<STATE,ACTION>>();
+	public TransitionSystemImpl() {
 
-        this.atomicPropositions = new HashSet<ATOMIC_PROPOSITION>();
-    }
+		this.initialStates = new HashSet<STATE>();
+		this.states = new HashSet<STATE>();
+		this.labelingFunction = new HashMap<STATE, Set<ATOMIC_PROPOSITION>>();
+		this.actions = new HashSet<ACTION>();
+		this.transitions = new HashSet<Transition<STATE,ACTION>>();
+		this.atomicPropositions = new HashSet<ATOMIC_PROPOSITION>();
+	}
 
-    public TransitionSystemImpl(TransitionSystemImpl other) {
-        this.name = other.name;
+	public TransitionSystemImpl(TransitionSystemImpl<STATE, ACTION, ATOMIC_PROPOSITION> other) {
 
-        this.initialStates = new HashSet<STATE>(other.initialStates);
-        this.states = new HashSet<STATE>(other.states);
+		this.name = other.name;
+		this.initialStates = new HashSet<STATE>(other.initialStates);
+		this.states = new HashSet<STATE>(other.states);
+		this.labelingFunction = new HashMap<STATE, Set<ATOMIC_PROPOSITION>>();
+		for (STATE state : other.labelingFunction.keySet()) {
+			Set<ATOMIC_PROPOSITION> otherAPsForState = other.labelingFunction.get(state);
+			this.labelingFunction.put(state, new HashSet<ATOMIC_PROPOSITION>(otherAPsForState));
+		}
+		this.actions = new HashSet<ACTION>(other.actions);
+		this.transitions = new HashSet<>(other.transitions);
+		this.atomicPropositions = new HashSet<ATOMIC_PROPOSITION>(other.atomicPropositions);
+	}
 
-        this.labelingFunction = new HashMap<STATE, Set<ATOMIC_PROPOSITION>>();
-        for (STATE state : ((Map<STATE, Set<ATOMIC_PROPOSITION>>)other.labelingFunction).keySet()) {
-            Set<ATOMIC_PROPOSITION> otherAPsForState = (Set<ATOMIC_PROPOSITION>)other.labelingFunction.get(state);
-            this.labelingFunction.put(state, new HashSet<ATOMIC_PROPOSITION>(otherAPsForState));
-        }
+	@Override
+	public String getName() {
+		return this.name;
+	}
 
-        this.actions = new HashSet<ACTION>(other.actions);
+	@Override
+	public void setName(String name) {
+		this.name = name;
+	}
 
-        this.transitions = new HashSet<>(other.transitions);
+	public void addAction(ACTION action) {
+		this.actions.add(action);
+	}
 
-        this.atomicPropositions = new HashSet<ATOMIC_PROPOSITION>(other.atomicPropositions);
-    }
+	@Override
+	public void addInitialState(STATE initialState) throws FVMException {
+		if (!this.states.contains(initialState)) {
+			throw new InvalidInitialStateException(initialState);
+		}
+		this.initialStates.add(initialState);
+	}
 
-    @Override
-    public String getName() {
-        return this.name;
-    }
+	@Override
+	public void addState(STATE state) {
+		this.states.add(state);
+	}
 
-    @Override
-    public void setName(String name) {
-        this.name = name;
-    }
+	@Override
+	public void addTransition(Transition<STATE, ACTION> t) throws FVMException {
+		boolean fromExists = this.states.contains(t.getFrom());
+		boolean toExists = this.states.contains(t.getTo());
+		boolean actionExists = this.actions.contains(t.getAction());
 
-    public void addAction(ACTION action) {
-        this.actions.add(action);
-    }
+		if (!fromExists || !toExists || !actionExists) {
+			throw new InvalidTransitionException(t);
+		}
+		this.transitions.add(t);
+	}
 
-    @Override
-    public void addInitialState(STATE initialState) throws FVMException {
-        if (this.states.contains(initialState)) {
-            this.initialStates.add(initialState);
-        } else {
-            throw new InvalidInitialStateException(initialState);
-        }
-    }
+	@Override
+	public Set<ACTION> getActions() {
+		return this.actions;
+	}
 
-    @Override
-    public void addState(STATE state) {
-        this.states.add(state);
-    }
+	@Override
+	public void addAtomicProposition(ATOMIC_PROPOSITION p) {
+		this.atomicPropositions.add(p);
+	}
 
-    @Override
-    public void addTransition(Transition t) throws FVMException {
-        boolean fromExists = this.states.contains(t.getFrom());
-        boolean toExists = this.states.contains(t.getTo());
-        boolean actionExists = this.actions.contains(t.getAction());
+	@Override
+	public Set<ATOMIC_PROPOSITION> getAtomicPropositions() {
+		return this.atomicPropositions;
+	}
 
-        if (!fromExists || !toExists || !actionExists) {
-            throw new InvalidTransitionException(t);
-        } else {
-            this.transitions.add(t);
-        }
-    }
+	@Override
+	public void addToLabel(STATE s, ATOMIC_PROPOSITION l) throws FVMException {
+		boolean stateExists = this.states.contains(s);
+		boolean isAtomicProp = this.atomicPropositions.contains(l);
 
-    @Override
-    public Set<ACTION> getActions() {
-        return this.actions;
-    }
+		if (!stateExists) {
+			throw new InvalidLablingPairException(s, l);
+		} 
+		if (!isAtomicProp) {
+			throw new InvalidLablingPairException(s, l);
+		}
+		Set<ATOMIC_PROPOSITION> labelsOfState = this.labelingFunction.containsKey(s) ? this.labelingFunction.get(s) : new HashSet<ATOMIC_PROPOSITION>(); 
+		labelsOfState.add(l);
+		this.labelingFunction.put(s, labelsOfState);
+	}
 
-    @Override
-    public void addAtomicProposition(ATOMIC_PROPOSITION p) {
-        this.atomicPropositions.add(p);
-    }
+	@Override
+	public Set<ATOMIC_PROPOSITION> getLabel(Object s) {
+		if (!this.states.contains(s)) {
+			throw new StateNotFoundException(s);
+		}
 
-    @Override
-    public Set<ATOMIC_PROPOSITION> getAtomicPropositions() {
-        return this.atomicPropositions;
-    }
+		return this.labelingFunction.containsKey(s) ? this.labelingFunction.get(s) : new HashSet<ATOMIC_PROPOSITION>();
+	}
 
-    @Override
-    public void addToLabel(STATE s, ATOMIC_PROPOSITION l) throws FVMException {
-        boolean stateExists = this.states.contains(s);
-        boolean isAtomicProp = this.atomicPropositions.contains(l);
+	@Override
+	public Set<STATE> getInitialStates() {
+		return this.initialStates;
+	}
 
-        if (!stateExists) {
-            throw new InvalidLablingPairException(s, l);
-        } else if (!isAtomicProp) {
-            throw new InvalidLablingPairException(s, l);
-        } else {
-            Set<ATOMIC_PROPOSITION> labelsForState = this.labelingFunction.getOrDefault(s, new HashSet<ATOMIC_PROPOSITION>());
-            labelsForState.add(l);
-            this.labelingFunction.put(s, labelsForState);
-        }
-    }
+	@Override
+	public Map<STATE, Set<ATOMIC_PROPOSITION>> getLabelingFunction() {
+		return this.labelingFunction;
+	}
 
-    @Override
-    public Set<ATOMIC_PROPOSITION> getLabel(Object s) {
-        if (!this.states.contains(s)) {
-            throw new StateNotFoundException(s);
-        }
+	@Override
+	public Set<STATE> getStates() {
+		return this.states;
+	}
 
-        return this.labelingFunction.getOrDefault(s, new HashSet<ATOMIC_PROPOSITION>());
-    }
+	@Override
+	public Set<Transition<STATE,ACTION>> getTransitions() {
+		return this.transitions;
+	}
 
-    @Override
-    public Set<STATE> getInitialStates() {
-        return this.initialStates;
-    }
+	@Override
+	public void removeAction(ACTION action) throws FVMException {
+		for(Transition<STATE, ACTION> transition : this.transitions) {
+			// make sure the deleted action is not part of any transition
+			if (transition.getAction().equals(action)) {
+				throw new DeletionOfAttachedActionException(action, TRANSITIONS);
+			}
 
-    @Override
-    public Map<STATE, Set<ATOMIC_PROPOSITION>> getLabelingFunction() {
-        return this.labelingFunction;
-    }
+			this.actions.remove(action);
+		}
+	}
 
-    @Override
-    public Set<STATE> getStates() {
-        return this.states;
-    }
 
-    @Override
-    public Set<Transition<STATE,ACTION>> getTransitions() {
-        return this.transitions;
-    }
 
-    @Override
-    public void removeAction(ACTION action) throws FVMException {
-        boolean actionIsInUseByTransition = this.actionIsInUseByATransition(action);
+	@Override
+	public void removeAtomicProposition(ATOMIC_PROPOSITION ap) throws FVMException {
+		for(Set<ATOMIC_PROPOSITION> labels : this.labelingFunction.values()) {
+			// make sure the deleted AP is not used to label existing state
+			if (labels.contains(ap)) {
+				throw new DeletionOfAttachedAtomicPropositionException(ap, STATES);
+			}
+		}
 
-        if (actionIsInUseByTransition) {
-            throw new DeletionOfAttachedActionException(action, TRANSITIONS);
-        } else {
-            this.actions.remove(action);
-        }
-    }
+		this.atomicPropositions.remove(ap);
+	}
 
-    private boolean actionIsInUseByATransition (ACTION action) {
-        boolean isInUse = false;
 
-        for(Transition<STATE, ACTION> t : this.transitions) {
-            if (t.getAction().equals(action)) {
-                isInUse = true;
-            }
-        }
+	@Override
+	public void removeInitialState(STATE initialState) {
+		this.initialStates.remove(initialState);
+	}
 
-        return isInUse;
-    }
+	@Override
+	public void removeLabel(STATE s, ATOMIC_PROPOSITION l) {
+		if (this.labelingFunction.containsKey(s))
+		{
+			this.labelingFunction.get(s).remove(l);
+		}
+	}
+	
+	@Override
+	public void removeState(STATE state) throws FVMException {
+		
+		//make sure the state does not take part in any transition
+		for(Transition<STATE, ACTION> transition : this.transitions) {
+			if (transition.getFrom().equals(state) || transition.getTo().equals(state)) {
+				throw new DeletionOfAttachedStateException(state, TRANSITIONS);
+			}
+		}
+		
+		//make sure the state is not labeled
+		Set<ATOMIC_PROPOSITION> labels = this.labelingFunction.get(state);
+		if (labels != null && !labels.isEmpty()) {
+			throw new DeletionOfAttachedStateException(state, LABELING_FUNCTION);
+		}
 
-    @Override
-    public void removeAtomicProposition(ATOMIC_PROPOSITION ap) throws FVMException {
-        boolean atomicPropositionIsUsedAsLabelOnAState = this.atomicPropositionIsUsedAsLabelOnAState(ap);
+		// make the state is not an initial state 
+		if (this.initialStates.contains(state))
+		{
+			throw new DeletionOfAttachedStateException(state, INITIAL_STATES);
+		}
+		
+		this.states.remove(state);
+	}
 
-        if (atomicPropositionIsUsedAsLabelOnAState) {
-            throw new DeletionOfAttachedAtomicPropositionException(ap, STATES);
-        } else {
-            this.atomicPropositions.remove(ap);
-        }
-    }
-
-    private boolean atomicPropositionIsUsedAsLabelOnAState (ATOMIC_PROPOSITION ap) {
-
-        for(Set<ATOMIC_PROPOSITION> labels : this.labelingFunction.values()) {
-            if (labels.contains(ap)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    @Override
-    public void removeInitialState(STATE initialState) {
-        this.initialStates.remove(initialState);
-    }
-
-    @Override
-    public void removeLabel(STATE s, ATOMIC_PROPOSITION l) {
-        Set<ATOMIC_PROPOSITION> labelsForState = this.labelingFunction.getOrDefault(s, new HashSet<ATOMIC_PROPOSITION>());
-        labelsForState.remove(l);
-    }
-
-    @Override
-    public void removeState(STATE state) throws FVMException {
-        boolean stateInUseByTransition = this.stateInUseByATransition(state);
-        boolean stateIsLabeled = this.stateIsLabeled(state);
-        boolean stateIsInitial = this.initialStates.contains(state);
-
-        if (stateInUseByTransition) {
-            throw new DeletionOfAttachedStateException(state, TRANSITIONS);
-        } else if (stateIsLabeled) {
-            throw new DeletionOfAttachedStateException(state, LABELING_FUNCTION);
-        } else if (stateIsInitial) {
-            throw new DeletionOfAttachedStateException(state, INITIAL_STATES);
-        } else {
-            this.states.remove(state);
-        }
-    }
-
-    private boolean stateInUseByATransition(STATE state) {
-        boolean isInUse = false;
-
-        for(Transition<STATE, ACTION> transition : this.transitions) {
-            if (transition.getFrom().equals(state) || transition.getTo().equals(state)) {
-                isInUse = true;
-            }
-        }
-
-        return isInUse;
-    }
-
-    private boolean stateIsLabeled(STATE state) {
-        Set<ATOMIC_PROPOSITION> labels = this.labelingFunction.get(state);
-        if (labels == null) {
-            return false;
-        }
-        if (labels.isEmpty()) {
-            return false;
-        }
-        return true;
-    }
-
-    @Override
-    public void removeTransition(Transition t) {
-        this.transitions.remove(t);
-    }
+	@Override
+	public void removeTransition(Transition t) {
+		this.transitions.remove(t);
+	}
 }
