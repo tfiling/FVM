@@ -973,6 +973,7 @@ public class FvmFacadeImpl implements FvmFacade {
             return message.substring(1, message.length() - 1);
         }
         return message;
+        
     }
 
     @Override
