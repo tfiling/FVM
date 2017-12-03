@@ -18,6 +18,7 @@ import il.ac.bgu.cs.fvm.transitionsystem.TransitionSystem;
 import il.ac.bgu.cs.fvm.util.Pair;
 import il.ac.bgu.cs.fvm.verification.VerificationResult;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -508,11 +509,50 @@ public class FvmFacadeImpl implements FvmFacade {
 
         return interleavedProgramGraph;
     }
+    
+   
+    @Override               //States               						      //Actions            //Tags 
+    public TransitionSystem<Pair<Map<String, Boolean>, Map<String, Boolean>>, Map<String, Boolean>, Object> transitionSystemFromCircuit(Circuit c) {
+    	TransitionSystem<Pair<Map<String,Boolean>, Map<String,Boolean>>, Map<String, Boolean>, Object> transitionSystem = new TransitionSystemImpl<>();
 
-/*private functions for us only*/
-    private Set<List<Boolean>> fullTruthTable (int numberOfVars) {
-        List<Boolean>[] lists = new List[powerOf2(numberOfVars)];
-        fillListWithTruthTable(lists);
+        //Atomic propositions
+        for (String inputPortName : c.getInputPortNames()) {
+            transitionSystem.addAtomicProposition(inputPortName);
+        }
+        for (String registerName : c.getRegisterNames()) {
+            transitionSystem.addAtomicProposition(registerName);
+        }
+        for (String outputPortName : c.getOutputPortNames()) {
+            transitionSystem.addAtomicProposition(outputPortName);
+        }
+
+        Set<Map<String, Boolean>> fullTruthTable = fullTruthTable(c.getInputPortNames());
+
+        //Actions
+        for (Map<String, Boolean> action : fullTruthTable) {
+            transitionSystem.addAction(action);
+        }
+
+        
+        //Initial state and states, transitions and labeling
+        for (Map<String, Boolean> inputInitialValues : fullTruthTable) {
+        	Map<String, Boolean> registerInitialValues = new HashMap<String,Boolean>();
+            for(String regName : c.getRegisterNames()) {
+                registerInitialValues.put(regName, new Boolean(false));
+            }
+
+            Pair<Map<String, Boolean>, Map<String, Boolean>> initialState = new Pair<>(registerInitialValues, inputInitialValues);
+            walkThroughtCircut(c, transitionSystem, true, initialState);
+        }
+
+        return transitionSystem;
+    }
+
+    private Set<Map<String, Boolean>> fullTruthTable (Set<String> inputs) {
+
+    	Map<String, Boolean>[] lists = new HashMap[powerOf2(inputs.size())];
+
+    	fillListWithTruthTable(inputs, lists);
 
         Set<List<Boolean>> listsSet = new HashSet<>();
         for (int i = 0; i < lists.length; i++) {
@@ -530,14 +570,14 @@ public class FvmFacadeImpl implements FvmFacade {
         return power;
     }
 
-    private void fillListWithTruthTable (List<Boolean>[] lists) {
+    private void fillListWithTruthTable (Set<String> inputs, Map<String, Boolean>[] lists) {
         if (lists.length == 2) {
             if (lists[0] == null) {
-                lists[0] = new LinkedList<Boolean>();
+                lists[0] = new HashMap<String,Boolean>();
             }
-            lists[0].add(new Boolean(true));
+            lists[0].put(,new Boolean(true));
             if (lists[1] == null) {
-                lists[1] = new LinkedList<Boolean>();
+                lists[1] = new HashMap<String,Boolean>();
             }
             lists[1].add(new Boolean(false));
             return;
@@ -563,7 +603,7 @@ public class FvmFacadeImpl implements FvmFacade {
         fillListWithTruthTable(secondHalf);
     }
 
-    private void walkThroughtCircut(Circuit c, TransitionSystem<Pair<M<Boolean>, List<Boolean>>, List<Boolean>, Object> transitionSystem, boolean isInitial, Pair<List<Boolean>, List<Boolean>> currentState) {
+    private void walkThroughtCircut(Circuit c, TransitionSystem<Pair<List<Boolean>, List<Boolean>>, List<Boolean>, Object> transitionSystem, boolean isInitial, Pair<List<Boolean>, List<Boolean>> currentState) {
         boolean transitionSystemContainedState = transitionSystem.getStates().contains(currentState);
 
         //States
@@ -610,44 +650,7 @@ public class FvmFacadeImpl implements FvmFacade {
             transitionSystem.addTransition(transition);
         }
     }
-
-    @Override
-    public TransitionSystem<Pair<Map<String, Boolean>, Map<String, Boolean>>, Map<String, Boolean>, Object> transitionSystemFromCircuit(Circuit c) {
-    	TransitionSystem<Pair<Map<String, Boolean>, Map<String, Boolean>>, Map<String, Boolean>, Object> transitionSystem = new TransitionSystemImpl<>();
-
-         //Atomic propositions
-         for (String inputPortName : c.getInputPortNames()) {
-             transitionSystem.addAtomicProposition(inputPortName);
-         }
-         for (String registerName : c.getRegisterNames()) {
-             transitionSystem.addAtomicProposition(registerName);
-         }
-         for (String outputPortName : c.getOutputPortNames()) {
-             transitionSystem.addAtomicProposition(outputPortName);
-         }
-
-         Set<List<Boolean>> fullTruthTable = fullTruthTable(c.getInputPortNames().size());
-
-         //Actions
-         for (List<Boolean> action : fullTruthTable) {
-             transitionSystem.addAction(action);
-         }
-
-         //Initial state and states, transitions and labeling
-         for (List<Boolean> inputInitialValues : fullTruthTable) {
-             List<Boolean> registerInitialValues = new LinkedList<>();
-             for (int i = 0; i < c.getRegisterNames().size(); i++) {
-                 registerInitialValues.add(new Boolean(false));
-             }
-
-             Pair<List<Boolean>, List<Boolean>> initialState = new Pair<>(registerInitialValues, inputInitialValues);
-             walkThroughtCircut(c, transitionSystem, true, initialState);
-         }
-
-         return transitionSystem;
-     }
-
-    @Override
+	@Override
     public <L, A> TransitionSystem<Pair<L, Map<String, Object>>, A, String> transitionSystemFromProgramGraph(ProgramGraph<L, A> pg, Set<ActionDef> actionDefs, Set<ConditionDef> conditionDefs) {
     	   TransitionSystem<Pair<L, Map<String, Object>>, A, String> transitionSystem = new TransitionSystemImpl<Pair<L, Map<String, Object>>, A, String>();
 
