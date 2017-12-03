@@ -526,6 +526,7 @@ public class FvmFacadeImpl implements FvmFacade {
             transitionSystem.addAtomicProposition(outputPortName);
         }
 
+        //Apply all the possible combinations upon the inputs
         Set<Map<String, Boolean>> fullTruthTable = fullTruthTable(c.getInputPortNames());
 
         //Actions
@@ -550,11 +551,26 @@ public class FvmFacadeImpl implements FvmFacade {
 
     private Set<Map<String, Boolean>> fullTruthTable (Set<String> inputs) {
 
-    	Map<String, Boolean>[] lists = new HashMap[powerOf2(inputs.size())];
+    	int listsSize = powerOf2(inputs.size());
+    	Map<String, Boolean>[] lists = new HashMap[listsSize];
+    	 List<Boolean>[] listsJustBool = new List[listsSize];
+    	ArrayList <String> inputNames = new ArrayList<String>();   	
+    	for (String aix: inputs)
+    	{
+    		inputNames.add(aix);
+    	}
+    	fillListWithTruthTable(listsJustBool);
+    	
+    	
+    	for(int i = 0; i<listsSize; ++i)
+    	{//iterate the lists of possible configurations
+    		for (int j = 0; j < inputNames.size(); ++j)
+    		{//iterate the names of inputs
+    			lists[i].put(inputNames.get(j), listsJustBool[i].get(j));
+    		}
+    	}  	
 
-    	fillListWithTruthTable(inputs, lists);
-
-        Set<List<Boolean>> listsSet = new HashSet<>();
+        Set<Map<String, Boolean>> listsSet = new HashSet<>();
         for (int i = 0; i < lists.length; i++) {
             listsSet.add(lists[i]);
         }
@@ -570,14 +586,14 @@ public class FvmFacadeImpl implements FvmFacade {
         return power;
     }
 
-    private void fillListWithTruthTable (Set<String> inputs, Map<String, Boolean>[] lists) {
+    private void fillListWithTruthTable (List<Boolean>[] lists) {
         if (lists.length == 2) {
             if (lists[0] == null) {
-                lists[0] = new HashMap<String,Boolean>();
+                lists[0] = new LinkedList<Boolean>();
             }
-            lists[0].put(,new Boolean(true));
+            lists[0].add(new Boolean(true));
             if (lists[1] == null) {
-                lists[1] = new HashMap<String,Boolean>();
+                lists[1] = new LinkedList<Boolean>();
             }
             lists[1].add(new Boolean(false));
             return;
@@ -603,13 +619,14 @@ public class FvmFacadeImpl implements FvmFacade {
         fillListWithTruthTable(secondHalf);
     }
 
-    private void walkThroughtCircut(Circuit c, TransitionSystem<Pair<List<Boolean>, List<Boolean>>, List<Boolean>, Object> transitionSystem, boolean isInitial, Pair<List<Boolean>, List<Boolean>> currentState) {
-        boolean transitionSystemContainedState = transitionSystem.getStates().contains(currentState);
+
+    private void walkThroughtCircut(Circuit c, TransitionSystem<Pair<Map<String, Boolean>, Map<String, Boolean>>, Map<String, Boolean>, Object> transitionSystem, boolean isInitial, Pair<Map<String, Boolean>, Map<String, Boolean>> initialState) {
+        boolean transitionSystemContainedState = transitionSystem.getStates().contains(initialState);
 
         //States
-        transitionSystem.addState(currentState);
+        transitionSystem.addState(initialState);
         if (isInitial) {
-            transitionSystem.addInitialState(currentState);
+            transitionSystem.addInitialState(initialState);
         }
 
         if (transitionSystemContainedState) {
@@ -617,36 +634,42 @@ public class FvmFacadeImpl implements FvmFacade {
         }
 
         //Labeling
-        List<Boolean> currentStateRegisters = currentState.first;
+        Map<String, Boolean> currentStateRegisters = initialState.first;
+        Set<String> currentStateRegistersNames = currentStateRegisters.keySet();
+        String[] RegNames = (String[]) currentStateRegistersNames.toArray();
         for (int i = 0; i < currentStateRegisters.size(); i++) {
             if (currentStateRegisters.get(i).booleanValue()) {
-                transitionSystem.addToLabel(currentState, c.getRegisterNames().get(i)); ;
+                transitionSystem.addToLabel(initialState, RegNames[i]); ;
             }
         }
-        List<Boolean> currentStateInput = currentState.second;
+        Map<String, Boolean>  currentStateInput = initialState.second;
+        Set<String> currentStateInputNames = currentStateRegisters.keySet();
+        String[] InNames = (String[]) currentStateInputNames.toArray();
         for (int i = 0; i < currentStateInput.size(); i++) {
             if (currentStateInput.get(i).booleanValue()) {
-                transitionSystem.addToLabel(currentState, c.getInputPortNames().get(i)); ;
+                transitionSystem.addToLabel(initialState, InNames[i]); ;
             }
         }
-        List<Boolean> currentStateOutput = c.computeOutputs(currentStateRegisters, currentStateInput);
+        Map<String, Boolean>  currentStateOutput = c.computeOutputs(currentStateRegisters, currentStateInput);
+        Set<String> currentStateOutputNames = currentStateRegisters.keySet();
+        String[] OutNames = (String[]) currentStateInputNames.toArray();
         for (int i = 0; i < currentStateOutput.size(); i++) {
             if (currentStateOutput.get(i).booleanValue()) {
-                transitionSystem.addToLabel(currentState, c.getOutputPortNames().get(i)); ;
+                transitionSystem.addToLabel(initialState, OutNames[i]); ;
             }
         }
 
 
         //Go recursive
-        Set<List<Boolean>> fullTruthTableForInputs = fullTruthTable(c.getInputPortNames().size());
-        for (List<Boolean> inputValue : fullTruthTableForInputs) {
-            List<Boolean> updatedRegisters = c.updateRegisters(currentState.first, currentState.second);
+        Set<Map<String, Boolean>> fullTruthTableForInputs = fullTruthTable(c.getInputPortNames());
+        for (Map<String, Boolean>  inputValue : fullTruthTableForInputs) {
+        	Map<String, Boolean>  updatedRegisters = c.updateRegisters(initialState.first, initialState.second);
 
-            Pair<List<Boolean>, List<Boolean>> nextState = new Pair<>(updatedRegisters, inputValue);
+            Pair<Map<String, Boolean> , Map<String, Boolean>> nextState = new Pair<>(updatedRegisters, inputValue);
             walkThroughtCircut(c, transitionSystem, false, nextState);
 
             //Transitions
-            Transition<Pair<List<Boolean>, List<Boolean>>, List<Boolean>> transition = new Transition<Pair<List<Boolean>, List<Boolean>>, List<Boolean>>(currentState, inputValue, nextState);
+            Transition<Pair<Map<String, Boolean>, Map<String, Boolean>>, Map<String, Boolean>> transition = new Transition<Pair<Map<String, Boolean>, Map<String, Boolean>>, Map<String, Boolean>>(initialState, inputValue, nextState);
             transitionSystem.addTransition(transition);
         }
     }
