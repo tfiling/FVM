@@ -561,7 +561,10 @@ public class FvmFacadeImpl implements FvmFacade {
     	}
     	fillListWithTruthTable(listsJustBool);
     	
-    	
+    	for(int i = 0; i<listsSize; ++i)
+    	{
+    		lists[i] = new HashMap<String, Boolean>();
+    	}
     	for(int i = 0; i<listsSize; ++i)
     	{//iterate the lists of possible configurations
     		for (int j = 0; j < inputNames.size(); ++j)
