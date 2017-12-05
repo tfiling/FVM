@@ -326,22 +326,21 @@ public class FvmFacadeImpl implements FvmFacade {
             for (Object s2 : ts2.getStates()) {
 
                 Pair<S1, S2> state = p(s1, s2);
-                transitionSystem.addState(state);
-
                 if (ts1.getInitialStates().contains(s1) && ts2.getInitialStates().contains(s2)) {
+                	transitionSystem.addState(state);
                     transitionSystem.addInitialState(state);
-                }
-
-                Set<P> ap = ts1.getLabel(state.first);
-                if (ap.size() > 0) {
-                    for (P p : ap) {
-                        transitionSystem.addToLabel(state, p);
+                    
+                    Set<P> ap = ts1.getLabel(state.first);
+                    if (ap.size() > 0) {
+                    	for (P p : ap) {
+                    		transitionSystem.addToLabel(state, p);
+                    	}
                     }
-                }
-                ap = ts2.getLabel(state.second);
-                if (ap.size() > 0) {
-                    for (P p : ap) {
-                        transitionSystem.addToLabel(state, p);
+                    ap = ts2.getLabel(state.second);
+                    if (ap.size() > 0) {
+                    	for (P p : ap) {
+                    		transitionSystem.addToLabel(state, p);
+                    	}
                     }
                 }
             }
@@ -386,7 +385,13 @@ public class FvmFacadeImpl implements FvmFacade {
 
     }
 
-    private <S1, S2, A, P> void addInterleaveState(TransitionSystem<S1, A, P> ts1, TransitionSystem<S2, A, P> ts2, TransitionSystem transitionSystem, List<Pair> states, Pair<S1, S2> toState) {
+    private <S1, S2, A, P> void addInterleaveState(
+    		TransitionSystem<S1, A, P> ts1, 
+    		TransitionSystem<S2, A, P> ts2, 
+    		TransitionSystem transitionSystem, 
+    		List<Pair> states, 
+    		Pair<S1, S2> toState) {
+    	
         if (!states.contains(toState)) {
             states.add(toState);
             transitionSystem.addState(toState);
