@@ -4,19 +4,28 @@ import il.ac.bgu.cs.fvm.FvmFacade;
 import il.ac.bgu.cs.fvm.automata.Automaton;
 import il.ac.bgu.cs.fvm.automata.MultiColorAutomaton;
 import il.ac.bgu.cs.fvm.channelsystem.ChannelSystem;
+import il.ac.bgu.cs.fvm.channelsystem.ParserBasedInterleavingActDef;
 import il.ac.bgu.cs.fvm.circuits.Circuit;
 import il.ac.bgu.cs.fvm.exceptions.ActionNotFoundException;
 import il.ac.bgu.cs.fvm.exceptions.StateNotFoundException;
 import il.ac.bgu.cs.fvm.ltl.LTL;
+import il.ac.bgu.cs.fvm.nanopromela.NanoPromelaFileReader;
+import il.ac.bgu.cs.fvm.nanopromela.NanoPromelaParser;
 import il.ac.bgu.cs.fvm.programgraph.ActionDef;
 import il.ac.bgu.cs.fvm.programgraph.ConditionDef;
 import il.ac.bgu.cs.fvm.programgraph.PGTransition;
+import il.ac.bgu.cs.fvm.programgraph.ParserBasedActDef;
+import il.ac.bgu.cs.fvm.programgraph.ParserBasedCondDef;
 import il.ac.bgu.cs.fvm.programgraph.ProgramGraph;
 import il.ac.bgu.cs.fvm.transitionsystem.AlternatingSequence;
 import il.ac.bgu.cs.fvm.transitionsystem.Transition;
 import il.ac.bgu.cs.fvm.transitionsystem.TransitionSystem;
 import il.ac.bgu.cs.fvm.util.Pair;
 import il.ac.bgu.cs.fvm.verification.VerificationResult;
+
+import static il.ac.bgu.cs.fvm.util.CollectionHelper.map;
+import static il.ac.bgu.cs.fvm.util.CollectionHelper.p;
+
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -27,11 +36,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+
 /**
  * Implement the methods in this class. You may add additional classes as you
  * want, as long as they live in the {@code impl} package, or one of its 
  * sub-packages.
  */
+//dasda
 public class FvmFacadeImpl implements FvmFacade {
 
     @Override
@@ -278,236 +289,187 @@ public class FvmFacadeImpl implements FvmFacade {
         return reachStates;
     }
     
-    private <S, A> Set<S> reach(TransitionSystem<S, A, ?> ts, S state) {
-        Set<S> reachableStates = new HashSet<S>();
 
-        Set<S> currentTestedStates = post(ts, state);
-
-        while (!currentTestedStates.isEmpty()) {
-            reachableStates.addAll(currentTestedStates);
-
-            currentTestedStates = this.post(ts, currentTestedStates);
-            currentTestedStates.removeAll(reachableStates);
-        }
-
-        return reachableStates;
-    }
-
+    /*///////////////////////////////////////////
+     * ////////////////HW1 ENDS HERE//////////////
+     *//////////////////////////////////////////
+     
     @Override
     public <S1, S2, A, P> TransitionSystem<Pair<S1, S2>, A, P> interleave(TransitionSystem<S1, A, P> ts1, TransitionSystem<S2, A, P> ts2) {
-        return interleave(ts1, ts2, null);
-    }
-
-    /*private functions of us */
-    private <S, A> Set<Transition<S, A>>transitionsInTransitionSystemForAction(TransitionSystem<S, A, ?> ts, A action) {
-        Set<Transition<S, A>> transitions = new HashSet<>();
-
-        for (Transition<S, A> transitionInTS : ts.getTransitions()) {
-            if (transitionInTS.getAction().equals(action)) {
-                transitions.add(transitionInTS);
-            }
-        }
-
-        return transitions;
-    }
-
-    private <S1, S2> Set<Pair<S1, S2>>cartesianProductSets(Set<S1> first, Set<S2> second) {
-        if (first == null || second == null) {
-            return new HashSet<>();
-        }
-
-        Set<Pair<S1, S2>> interleavedSet = new HashSet<>();
-
-        for (S1 firstObject: first) {
-            for (S2 secondObject : second) {
-                Pair<S1, S2> interleavedPair = new Pair<S1, S2>(firstObject, secondObject);
-                interleavedSet.add(interleavedPair);
-            }
-        }
-
-        return interleavedSet;
-    }
-
-    private <S> Set<S>intersectSets(Set<S> set1, Set<S> set2) {
-        if (set1 == null) {
-            return set2;
-        }
-        if (set2 == null) {
-            return set1;
-        }
-
-        Set<S> set1Copy = new HashSet<S>(set1);
-        set1Copy.retainAll(set2);
-        return set1Copy;
-    }
-
-    private <S> Set<S>unionSets(Set<S> set1, Set<S> set2) {
-        Set<S> set1Copy = new HashSet<S>(set1);
-        set1Copy.addAll(set2);
-        return set1Copy;
-    }
-
-    private <S> Set<S>differenceSets(Set<S> set1, Set<S> set2) {
-        Set<S> unionSet = unionSets(set1, set2);
-        Set<S> intersectSet = intersectSets(set1, set2);
-        unionSet.removeAll(intersectSet);
-        return unionSet;
-    }
-
-    //Set1 minus set2
-    private <S> Set<S>complementSet(Set<S> set1, Set<S> set2) {
-        if (set2 == null) {
-            return set1;
-        }
-
-        Set<S>set1Copy = new HashSet<S>(set1);
-        set1Copy.removeAll(set2);
-        return set1Copy;
+        return interleave(ts1, ts2, new HashSet<A>());
     }
 
     @Override
     public <S1, S2, A, P> TransitionSystem<Pair<S1, S2>, A, P> interleave(TransitionSystem<S1, A, P> ts1, TransitionSystem<S2, A, P> ts2, Set<A> handShakingActions) {
-        TransitionSystem<Pair<S1, S2>, A, P>  interleavedTransitionSystem = new TransitionSystemImpl<Pair<S1, S2>, A, P>();
+        TransitionSystem transitionSystem = createTransitionSystem();
 
-        //Interleave states
-        Set<Pair<S1, S2>> interleavedStates = cartesianProductSets(ts1.getStates(), ts2.getStates());
-
-        for (Pair<S1, S2> interleavedState : interleavedStates) {
-            interleavedTransitionSystem.addState(interleavedState);
+        // Extract actions
+        for (Object action : ts1.getActions()) {
+            transitionSystem.addAction(action);
         }
 
-        //Interleave initial states
-        for (Pair<S1, S2> interleavedState : interleavedStates) {
-            if (ts1.getInitialStates().contains(interleavedState.first) && ts2.getInitialStates().contains(interleavedState.second)) {
-                interleavedTransitionSystem.addInitialState(interleavedState);
-            }
+        for (Object action : ts2.getActions()) {
+            transitionSystem.addAction(action);
         }
 
-        //Interleave actions
-        for (A action : ts1.getActions()) {
-            interleavedTransitionSystem.addAction(action);
-        }
-        for (A action : ts2.getActions()) {
-            interleavedTransitionSystem.addAction(action);
+        // Extract AP
+        for (Object ap : ts1.getAtomicPropositions()) {
+            transitionSystem.addAtomicProposition(ap);
         }
 
-        //Interleave atomic propositions
-        for (P atomicProposition : ts1.getAtomicPropositions()) {
-            interleavedTransitionSystem.addAtomicProposition(atomicProposition);
-        }
-        for (P atomicProposition : ts2.getAtomicPropositions()) {
-            interleavedTransitionSystem.addAtomicProposition(atomicProposition);
+        for (Object ap : ts2.getAtomicPropositions()) {
+            transitionSystem.addAtomicProposition(ap);
         }
 
-        //Interleave labeling function (should come after interleaving states and APs
-        for (Pair<S1, S2> interleavedState : interleavedStates) {
-            Set<P> apsForState1InTS1 = ts1.getLabel(interleavedState.first);
-            Set<P> apsForState2InTS2 = ts2.getLabel(interleavedState.second);
+        // Extract states and initials
+        for (Object s1 : ts1.getStates()) {
+            for (Object s2 : ts2.getStates()) {
 
-            Set<P> intersectedApsForState1And2 = unionSets(apsForState1InTS1, apsForState2InTS2);
-            for (P atomicPropositionForInterleavedState : intersectedApsForState1And2) {
-                interleavedTransitionSystem.addToLabel(interleavedState, atomicPropositionForInterleavedState);
-            }
-        }
+                Pair<S1, S2> state = p(s1, s2);
+                transitionSystem.addState(state);
 
-        //Intersect transitions - for action in handshake
-        if (handShakingActions != null) {
-            for (A action : handShakingActions) {
-                Set<Transition<S1, A>> transitionsForActionInTs1 = transitionsInTransitionSystemForAction(ts1, action);
-                Set<Transition<S2, A>> transitionsForActionInTs2 = transitionsInTransitionSystemForAction(ts2, action);
+                if (ts1.getInitialStates().contains(s1) && ts2.getInitialStates().contains(s2)) {
+                    transitionSystem.addInitialState(state);
+                }
 
-                for (Transition<S1, A> transitionForActionInTs1 : transitionsForActionInTs1) {
-                    for (Transition<S2, A> transitionForActionInTs2 : transitionsForActionInTs2) {
-                        Pair<S1, S2> intersectedFromState = new Pair<S1, S2>(transitionForActionInTs1.getFrom(), transitionForActionInTs2.getFrom());
-                        Pair<S1, S2> intersectedToState = new Pair<S1, S2>(transitionForActionInTs1.getTo(), transitionForActionInTs2.getTo());
-                        Transition<Pair<S1, S2>, A> intersectedTransition = new Transition<Pair<S1, S2>, A>(intersectedFromState, action, intersectedToState);
-                        interleavedTransitionSystem.addTransition(intersectedTransition);
+                Set<P> ap = ts1.getLabel(state.first);
+                if (ap.size() > 0) {
+                    for (P p : ap) {
+                        transitionSystem.addToLabel(state, p);
+                    }
+                }
+                ap = ts2.getLabel(state.second);
+                if (ap.size() > 0) {
+                    for (P p : ap) {
+                        transitionSystem.addToLabel(state, p);
                     }
                 }
             }
         }
 
-        //Intersect transitions - for action not in H
-        Set<A> actionsInTs1AndNotInHandshake = complementSet(ts1.getActions(), handShakingActions);
-        for (A actionInTs1AndNotInHandshake : actionsInTs1AndNotInHandshake) {
-            Set<Transition<S1, A>> transitionsForActionInTs1 = transitionsInTransitionSystemForAction(ts1, actionInTs1AndNotInHandshake);
 
-            for(Transition<S1, A> transitionForActionInTs1 : transitionsForActionInTs1) {
-                for(S2 stateInTs2 : ts2.getStates()) {
-                    Pair<S1, S2> intersectedFromState = new Pair<S1, S2>(transitionForActionInTs1.getFrom(), stateInTs2);
-                    Pair<S1, S2> intersectedToState = new Pair<S1, S2>(transitionForActionInTs1.getTo(), stateInTs2);
-                    Transition<Pair<S1, S2>, A> intersectedTransition = new Transition<Pair<S1, S2>, A>(intersectedFromState, transitionForActionInTs1.getAction(), intersectedToState);
-                    interleavedTransitionSystem.addTransition(intersectedTransition);
+        // Transitions
+        List<Pair> states = new ArrayList<>(transitionSystem.getInitialStates());
+        for (int i = 0; i < states.size(); i++) {
+            Pair<S1, S2> state = states.get(i);
+
+            for (Transition t1 : ts1.getTransitions()) {
+                if (t1.getFrom().equals(state.first) && !handShakingActions.contains(t1.getAction())) {
+                    Pair<S1, S2> toState = p(t1.getTo(), state.second);
+                    addInterleaveState(ts1, ts2, transitionSystem, states, toState);
+                    transitionSystem.addTransition(new Transition(state, t1.getAction(), toState));
+                }
+            }
+
+            for (Transition t2 : ts2.getTransitions()) {
+                if (t2.getFrom().equals(state.second) && !handShakingActions.contains(t2.getAction())) {
+                    Pair<S1, S2> toState = p(state.first, t2.getTo());
+                    addInterleaveState(ts1, ts2, transitionSystem, states, toState);
+                    transitionSystem.addTransition(new Transition(state, t2.getAction(), toState));
+                }
+            }
+
+            for (Transition t1 : ts1.getTransitions()) {
+                if (t1.getFrom().equals(state.first) && handShakingActions.contains(t1.getAction())) {
+                    for (Transition t2 : ts2.getTransitions()) {
+                        if (t2.getFrom().equals(state.second) && t1.getAction().equals(t2.getAction())) {
+                            Pair<S1, S2> toState = p(t1.getTo(), t2.getTo());
+                            addInterleaveState(ts1, ts2, transitionSystem, states, toState);
+                            transitionSystem.addTransition(new Transition(state, t2.getAction(), toState));
+                        }
+                    }
                 }
             }
         }
-        Set<A> actionsInTs2AndNotInHandshake = intersectSets(ts2.getActions(), handShakingActions);
-        for (A actionInTs2AndNotInHandshake : actionsInTs2AndNotInHandshake) {
-            Set<Transition<S2, A>> transitionsForActionInTs2 = transitionsInTransitionSystemForAction(ts2, actionInTs2AndNotInHandshake);
 
-            for(Transition<S2, A> transitionForActionInTs2 : transitionsForActionInTs2) {
-                for(S1 stateInTs1 : ts1.getStates()) {
-                    Pair<S1, S2> intersectedFromState = new Pair<S1, S2>(stateInTs1, transitionForActionInTs2.getFrom());
-                    Pair<S1, S2> intersectedToState = new Pair<S1, S2>(stateInTs1, transitionForActionInTs2.getTo());
-                    Transition<Pair<S1, S2>, A> intersectedTransition = new Transition<Pair<S1, S2>, A>(intersectedFromState, transitionForActionInTs2.getAction(), intersectedToState);
-                    interleavedTransitionSystem.addTransition(intersectedTransition);
-                }
-            }
-        }
+        return transitionSystem;
 
-        return interleavedTransitionSystem;
     }
 
+    private <S1, S2, A, P> void addInterleaveState(TransitionSystem<S1, A, P> ts1, TransitionSystem<S2, A, P> ts2, TransitionSystem transitionSystem, List<Pair> states, Pair<S1, S2> toState) {
+        if (!states.contains(toState)) {
+            states.add(toState);
+            transitionSystem.addState(toState);
+            Set<P> ap = ts1.getLabel(toState.first);
+            if (ap.size() > 0) {
+                for (P p : ap) {
+                    transitionSystem.addToLabel(toState, p);
+                }
+            }
+            ap = ts2.getLabel(toState.second);
+            if (ap.size() > 0) {
+                for (P p : ap) {
+                    transitionSystem.addToLabel(toState, p);
+                }
+            }
+        }
+    }
 
     @Override
     public <L, A> ProgramGraph<L, A> createProgramGraph() {
-        return new ProgramGraphImpl<L, A>();
+        return new ProgramGraphImpl<>();
     }
 
     @Override
     public <L1, L2, A> ProgramGraph<Pair<L1, L2>, A> interleave(ProgramGraph<L1, A> pg1, ProgramGraph<L2, A> pg2) {
-        ProgramGraph<Pair<L1, L2>, A> interleavedProgramGraph = new ProgramGraphImpl<Pair<L1, L2>, A>();
+        ProgramGraph programGraph = createProgramGraph();
 
-        //Interleave locations
-        Set<Pair<L1, L2>> interleavedLocations = cartesianProductSets(pg1.getLocations(), pg2.getLocations());
-        for (Pair<L1, L2> interleavedLocation : interleavedLocations) {
-            interleavedProgramGraph.addLocation(interleavedLocation);
-        }
-
-        //Interleave initial locations
-        Set<Pair<L1, L2>> interleavedInitialLocations = cartesianProductSets(pg1.getInitialLocations(), pg2.getInitialLocations());
-        for (Pair<L1, L2> interleavedInitialLocation : interleavedInitialLocations) {
-            interleavedProgramGraph.addInitialLocation(interleavedInitialLocation);
-        }
-
-        //Interleave initializations
-        for (List<String> pg1Initialization : pg1.getInitalizations()) {
-            for (List<String> pg2Initialization : pg2.getInitalizations()) {
-                List<String> interlevedInitialization = new LinkedList<String>(pg1Initialization);
-                interlevedInitialization.addAll(pg2Initialization);
-                interleavedProgramGraph.addInitalization(interlevedInitialization);
+        // Extract locations
+        for (L1 l1 : pg1.getLocations()) {
+            for (L2 l2 : pg2.getLocations()) {
+                programGraph.addLocation(p(l1, l2));
             }
         }
 
-        //Interleave transitions
-        for (PGTransition<L1, A> transitionInPg1 : pg1.getTransitions()) {
-            for (L2 locationInPg2 : pg2.getLocations()) {
-                Pair<L1, L2> fromLocation = new Pair<L1, L2>(transitionInPg1.getFrom(), locationInPg2);
-                Pair<L1, L2> toLocation = new Pair<L1, L2>(transitionInPg1.getTo(), locationInPg2);
-                PGTransition<Pair<L1, L2>, A> interleavedTransition = new PGTransition<Pair<L1, L2>, A>(fromLocation, transitionInPg1.getCondition(), transitionInPg1.getAction(), toLocation);
-                interleavedProgramGraph.addTransition(interleavedTransition);
-            }
-        }
-        for (PGTransition<L2, A> transitionInPg2 : pg2.getTransitions()) {
-            for (L1 locationInPg1 : pg1.getLocations()) {
-                Pair<L1, L2> fromLocation = new Pair<L1, L2>(locationInPg1, transitionInPg2.getFrom());
-                Pair<L1, L2> toLocation = new Pair<L1, L2>(locationInPg1, transitionInPg2.getTo());
-                PGTransition<Pair<L1, L2>, A> interleavedTransition = new PGTransition<Pair<L1, L2>, A>(fromLocation, transitionInPg2.getCondition(), transitionInPg2.getAction(), toLocation);
-                interleavedProgramGraph.addTransition(interleavedTransition);
+        // Extract initial locations
+        for (L1 l1 : pg1.getInitialLocations()) {
+            for (L2 l2 : pg2.getInitialLocations()) {
+                programGraph.addInitialLocation(p(l1, l2));
             }
         }
 
-        return interleavedProgramGraph;
+        // Extract initialization
+        for (List<String> l1 : pg1.getInitalizations()) {
+            for (List<String> l2 : pg2.getInitalizations()) {
+                List<String> helper = new ArrayList<>(l1);
+                helper.addAll(l2);
+                programGraph.addInitalization(helper);
+            }
+        }
+
+        List<Pair<L1, L2>> states = new ArrayList<>(programGraph.getInitialLocations());
+
+        for (int i = 0; i < states.size(); i++) {
+            Pair<L1, L2> state = states.get(i);
+
+            for (PGTransition<L1, A> pgTransition : pg1.getTransitions()) {
+                if (state.first.equals(pgTransition.getFrom())) {
+                    Pair<L1, L2> toState = p(pgTransition.getTo(), state.second);
+
+                    if (!states.contains(toState)) {
+                        states.add(toState);
+                        programGraph.addLocation(toState);
+                    }
+
+                    programGraph.addTransition(new PGTransition(state, pgTransition.getCondition(), pgTransition.getAction(), toState));
+                }
+            }
+
+            for (PGTransition<L2, A> pgTransition : pg2.getTransitions()) {
+                if (state.second.equals(pgTransition.getFrom())) {
+                    Pair<L1, L2> toState = p(state.first, pgTransition.getTo());
+
+                    if (!states.contains(toState)) {
+                        states.add(toState);
+                        programGraph.addLocation(toState);
+                    }
+
+                    programGraph.addTransition(new PGTransition(state, pgTransition.getCondition(), pgTransition.getAction(), toState));
+                }
+            }
+        }
+
+        return programGraph;
     }
     
    
@@ -639,28 +601,46 @@ public class FvmFacadeImpl implements FvmFacade {
         //Labeling
         Map<String, Boolean> currentStateRegisters = initialState.first;
         Set<String> currentStateRegistersNames = currentStateRegisters.keySet();
-        String[] RegNames = (String[]) currentStateRegistersNames.toArray();
-        for (int i = 0; i < currentStateRegisters.size(); i++) {
-            if (currentStateRegisters.get(i).booleanValue()) {
-                transitionSystem.addToLabel(initialState, RegNames[i]); ;
-            }
+        Object[] RegNames = currentStateRegistersNames.toArray();
+        int j=0;
+        for(Boolean curr: currentStateRegisters.values())
+        {
+        	if (curr)
+        	{
+                transitionSystem.addToLabel(initialState, RegNames[j]); ;
+
+        	}
+        	++j;
         }
+       
         Map<String, Boolean>  currentStateInput = initialState.second;
-        Set<String> currentStateInputNames = currentStateRegisters.keySet();
-        String[] InNames = (String[]) currentStateInputNames.toArray();
-        for (int i = 0; i < currentStateInput.size(); i++) {
-            if (currentStateInput.get(i).booleanValue()) {
-                transitionSystem.addToLabel(initialState, InNames[i]); ;
-            }
+        Set<String> currentStateInputNames = currentStateInput.keySet();
+        Object[] InNames = currentStateInputNames.toArray();
+        j=0;
+        for(Boolean currIn: currentStateInput.values())
+        {
+        	if (currIn)
+        	{
+        		 transitionSystem.addToLabel(initialState, InNames[j]);
+
+        	}
+        	++j;
         }
+        
         Map<String, Boolean>  currentStateOutput = c.computeOutputs(currentStateRegisters, currentStateInput);
-        Set<String> currentStateOutputNames = currentStateRegisters.keySet();
-        String[] OutNames = (String[]) currentStateInputNames.toArray();
-        for (int i = 0; i < currentStateOutput.size(); i++) {
-            if (currentStateOutput.get(i).booleanValue()) {
-                transitionSystem.addToLabel(initialState, OutNames[i]); ;
-            }
+        Set<String> currentStateOutputNames = currentStateOutput.keySet();
+        Object[] OutNames = currentStateOutputNames.toArray();
+        j=0;
+        for(Boolean currOut: currentStateOutput.values())
+        {
+        	if (currOut)
+        	{
+        		 transitionSystem.addToLabel(initialState, OutNames[j]);
+
+        	}
+        	++j;
         }
+      
 
 
         //Go recursive
@@ -676,69 +656,95 @@ public class FvmFacadeImpl implements FvmFacade {
             transitionSystem.addTransition(transition);
         }
     }
-	@Override
+    
+    @Override
     public <L, A> TransitionSystem<Pair<L, Map<String, Object>>, A, String> transitionSystemFromProgramGraph(ProgramGraph<L, A> pg, Set<ActionDef> actionDefs, Set<ConditionDef> conditionDefs) {
-    	   TransitionSystem<Pair<L, Map<String, Object>>, A, String> transitionSystem = new TransitionSystemImpl<Pair<L, Map<String, Object>>, A, String>();
+    	List<ConditionDef> c = new ArrayList<>(conditionDefs);
+        TransitionSystem transitionSystem = createTransitionSystem();
 
-           //Actions
-           for (PGTransition<L,A> transition : pg.getTransitions()) {
-               transitionSystem.addAction(transition.getAction());
-           }
+        // Initialize states
+        for (L l : pg.getInitialLocations()) {
+            if (pg.getInitalizations().size() > 0) {
+                for (List<String> initialization : pg.getInitalizations()) {
+                    Map<String, Object> eval = new HashMap<>();
+                    for (String action : initialization) {
+                        for (ActionDef actionDef : actionDefs) {
+                            if (actionDef.isMatchingAction(action)) {
+                                eval = actionDef.effect(eval, action);
+                            }
+                        }
+                    }
+                    Pair state = p(l, eval);
+                    transitionSystem.addState(state);
+                    transitionSystem.addInitialState(state);
 
-           //States, labeling function, transitions and initial states (needs actions and APs to be set before this part)
-           for (List<String> initializationSeq : pg.getInitalizations()) {
-               Map<String, Object> initialEval = new HashMap<>();
-               for (String initialization : initializationSeq) {
-                   initialEval = ActionDef.effect(actionDefs, initialEval, initialization);
-               }
-               for (L initialLocation : pg.getInitialLocations()) {
-                   walkInProgramGraphAndPopulateStates(pg, initialLocation, initialEval, actionDefs, conditionDefs, true, transitionSystem);
-               }
-           }
 
-           return transitionSystem;
-       }
 
-    //return stateForLocationAndEval
-    private <L, A>  Pair<L, Map<String, Object>> walkInProgramGraphAndPopulateStates(ProgramGraph<L, A> pg, L currentLocation, Map<String, Object> currentEval, Set<ActionDef> actionDefs, Set<ConditionDef> conditionDefs, boolean isInitial, TransitionSystem<Pair<L, Map<String, Object>>, A, String> transitionSystemToPopulate) {
-        Pair<L, Map<String, Object>> stateForLocationAndEval = new Pair<L, Map<String, Object>>(currentLocation, currentEval);
+                    // Add AP and L
+                    for (Map.Entry atomic : eval.entrySet()) {
+                        transitionSystem.addAtomicProposition(atomic.getKey() + " = " + atomic.getValue());
+                        transitionSystem.addToLabel(state, atomic.getKey() + " = " + atomic.getValue());
+                    }
 
-        if (transitionSystemToPopulate.getStates().contains(stateForLocationAndEval)) {
-            return stateForLocationAndEval;
-        }
+                    transitionSystem.addAtomicProposition(l.toString());
+                    transitionSystem.addToLabel(state, l.toString());
 
-        //Add current state
-        transitionSystemToPopulate.addState(stateForLocationAndEval);
-        //Add initial state
-        if (isInitial) {
-            transitionSystemToPopulate.addInitialState(stateForLocationAndEval);
-        }
+                }
+            } else {
+                Pair state = p(l, new HashMap<>());
+                transitionSystem.addState(state);
+                transitionSystem.addInitialState(state);
 
-        //Add labeling function
-        stateForLocationAndEval.second.forEach( (k, v) -> {
-            transitionSystemToPopulate.addAtomicProposition(k + " = " + v);
-            transitionSystemToPopulate.addToLabel(stateForLocationAndEval, k + " = " + v);
-        });
-
-        //Go to transitions from this state
-        for (PGTransition<L, A> transition : transitionsInProgramGraphWhereStartLocationEquals(pg, currentLocation)) {
-            String condition = transition.getCondition();
-            if (ConditionDef.evaluate(conditionDefs, currentEval, condition)) {
-                //This is a transition that works
-                L nextLocation = transition.getTo();
-                Map<String, Object> nextEval = ActionDef.effect(actionDefs, currentEval, transition.getAction());
-                Pair<L, Map<String, Object>> stateForConditionAndAction = walkInProgramGraphAndPopulateStates(pg, nextLocation, nextEval, actionDefs, conditionDefs, false, transitionSystemToPopulate);
-
-                //Add transition to the transition system
-                Transition<Pair<L, Map<String, Object>>, A> transitionForTransitionSystem = new Transition<Pair<L, Map<String, Object>>, A>(stateForLocationAndEval, transition.getAction(), stateForConditionAndAction);
-                transitionSystemToPopulate.addTransition(transitionForTransitionSystem);
+                transitionSystem.addAtomicProposition(l.toString());
+                transitionSystem.addToLabel(state, l.toString());
             }
         }
 
-        return stateForLocationAndEval;
+
+        // Add all states
+        List<Pair<String, Map<String, Object>>> states = new ArrayList<>(transitionSystem.getInitialStates());
+        for (int i = 0; i < states.size(); i++) {
+            Pair<String, Map<String, Object>> state = states.get(i);
+            for (PGTransition pgTransition : pg.getTransitions()) {
+                if (pgTransition.getFrom().equals(state.first)) {
+                    for (ConditionDef conditionDef : conditionDefs) {
+                        if (conditionDef.evaluate(state.second, pgTransition.getCondition())) {
+                            Map<String, Object> eval = state.second;
+                            for (ActionDef actionDef : actionDefs) {
+                                if (actionDef.isMatchingAction(pgTransition.getAction())) {
+                                    eval = actionDef.effect(eval, pgTransition.getAction());
+                                }
+                            }
+                            Pair toState = p(pgTransition.getTo(), eval);
+                            if (!states.contains(toState)) {
+                                states.add(toState);
+                                transitionSystem.addState(toState);
+
+
+
+                                // Add AP and L
+                                for (Map.Entry atomic : eval.entrySet()) {
+                                    transitionSystem.addAtomicProposition(atomic.getKey() + " = " + atomic.getValue());
+                                    transitionSystem.addToLabel(toState, atomic.getKey() + " = " + atomic.getValue());
+                                }
+
+                                transitionSystem.addAtomicProposition(pgTransition.getTo().toString());
+                                transitionSystem.addToLabel(toState, pgTransition.getTo().toString());
+
+                            }
+                            transitionSystem.addAction(pgTransition.getAction());
+                            transitionSystem.addTransition(new Transition(state, pgTransition.getAction(), toState));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        return transitionSystem;
     }
 
-    private <L, A> Set<PGTransition<L, A>> transitionsInProgramGraphWhereStartLocationEquals(ProgramGraph<L, A> pg, L startLocation) {
+
+  private <L, A> Set<PGTransition<L, A>> transitionsInProgramGraphWhereStartLocationEquals(ProgramGraph<L, A> pg, L startLocation) {
         Set<PGTransition<L, A>> allTransitions = pg.getTransitions();
         Set<PGTransition<L, A>> transitionsInProgramGraphWhereStartLocationEquals = new HashSet<>();
 
@@ -754,276 +760,168 @@ public class FvmFacadeImpl implements FvmFacade {
     
     @Override
     public <L, A> TransitionSystem<Pair<List<L>, Map<String, Object>>, A, String> transitionSystemFromChannelSystem(ChannelSystem<L, A> cs) {
-    	 TransitionSystem<Pair<List<L>, Map<String, Object>>, A, String> transitionSystem = new TransitionSystemImpl<Pair<List<L>, Map<String, Object>>, A, String>();
 
-         //Actions
-         for (ProgramGraph<L, A> pg : cs.getProgramGraphs()) {
-             for (PGTransition<L,A> transition : pg.getTransitions()) {
-                 transitionSystem.addAction(transition.getAction());
-             }
-         }
+        ParserBasedActDef parserBasedActDef = new ParserBasedActDef();
+        ParserBasedInterleavingActDef parserBasedInterleavingActDef = new ParserBasedInterleavingActDef();
 
-         //initial states, states, actions, transitions
-         Set<List<L>> cartesianSumOfLocation = null;
-         for (ProgramGraph<L, A> pg : cs.getProgramGraphs()) {
-             cartesianSumOfLocation = cartesianSumOfList(cartesianSumOfLocation, pg.getInitialLocations());
-         }
 
-         for (List<L> initialLocationList : cartesianSumOfLocation) {
-             Map<String, Object> emptyAssignment = new HashMap<>();
-             walkChannelSystem(transitionSystem, cs, initialLocationList, emptyAssignment, true);
-         }
-
-         return transitionSystem;
-     }
-    private <L> Set<List<L>> cartesianSumOfList(Set<List<L>> setsOfLists , Set<L> sets) {
-        if (setsOfLists == null) {
-            setsOfLists = new HashSet<>();
-        }
-
-        if (setsOfLists.size() == 0) {
-            for (L object : sets) {
-                List<L> newObjectList = new LinkedList<L>();
-                newObjectList.add(object);
-                setsOfLists.add(newObjectList);
+        Set<ConditionDef> conditionDefs = new HashSet<ConditionDef>() {
+            {
+                add(new ParserBasedCondDef());
             }
-            return setsOfLists;
+        };
+
+        TransitionSystem<Pair<List<L>, Map<String, Object>>, A, String> transitionSystem = createTransitionSystem();
+
+        List<List<L>> initialLocations = extractInitialLocations(new ArrayList<>(), cs.getProgramGraphs());
+
+        for (List<L> location : initialLocations) {
+            Pair<List<L>, Map<String, Object>> state = p(location, map());
+            transitionSystem.addState(state);
+            transitionSystem.addInitialState(state);
         }
 
-        Set<List<L>> resultList = new HashSet<>();
-        for (L set : sets) {
-            for (List<L> listInSet : setsOfLists) {
-                List<L> listCopy = new LinkedList<L>(listInSet);
-                listCopy.add(set);
-                resultList.add(listCopy);
-            }
-        }
-        return resultList;
-    }
 
-    private <L, A> Pair<List<L>, Map<String, Object>> walkChannelSystem(TransitionSystem<Pair<List<L>, Map<String, Object>>, A, String> ts, ChannelSystem<L, A> cs, List<L>currentLocations, Map<String, Object> currentAssignments, boolean isInitial) {
-        HashMap<String, Object> copiedCurrentAssignments = new HashMap<>();
-        for (Map.Entry<String, Object> entry : currentAssignments.entrySet()) {
-            if (entry.getValue() instanceof List) {
-                copiedCurrentAssignments.put(entry.getKey(), new LinkedList<>((List)entry.getValue()));
-            } else {
-                copiedCurrentAssignments.put(entry.getKey(), entry.getValue());
-            }
-        }
-        Pair<List<L>, Map<String, Object>> currentState = new Pair<>(new LinkedList<L>(currentLocations), copiedCurrentAssignments);
+        List<Pair<List<L>, Map<String, Object>>> states = new ArrayList<>(transitionSystem.getStates());
 
-        boolean tsContainsStates = ts.getStates().contains(currentState);
+        for (int s = 0; s < states.size(); s++) {
 
-        ts.addState(currentState);
-        if (isInitial) {
-            ts.addInitialState(currentState);
-        }
+            Pair<List<L>, Map<String, Object>> state = states.get(s);
+            List<List<PGTransition<L, A>>> possibleTransitions = new ArrayList<>();
 
-        if (tsContainsStates) {
-            return currentState;
-        }
+            for (int i = 0; i < cs.getProgramGraphs().size(); i++) {
+                possibleTransitions.add(new ArrayList<PGTransition<L, A>>());
 
-        //Build transitionsCartesianProduct
-        Set<List<PGTransition<L, A>>> transitionsCartesianProduct = null;
-        for (int i = 0; i < cs.getProgramGraphs().size(); i++) {
-            ProgramGraph<L, A> pg = cs.getProgramGraphs().get(i);
-            L locationInPG = currentLocations.get(i);
+                for (PGTransition<L, A> pgTransition : cs.getProgramGraphs().get(i).getTransitions()) {
 
-            Set<PGTransition<L, A>> transitionsFromLocation = transitionsInProgramGraphWhereStartLocationEquals(pg, locationInPG);
-            transitionsCartesianProduct = cartesianSumOfList(transitionsCartesianProduct, transitionsFromLocation);
-        }
-
-        //Go through all transitionsCartesianProduct and create transitions if terms are met
-        for (List<PGTransition<L, A>> transitionList : transitionsCartesianProduct) {
-            Map<String, Object> nextAssignment = new HashMap<String, Object>(currentAssignments);
-
-            A action = null;
-            List<L> nextLocations = new LinkedList<L>(currentLocations);
-
-            for (PGTransition<L, A> tranition : transitionList) {
-                //This action is to get from queue
-                if (messageIsGetFromQueue(tranition.getAction().toString())) {
-                    String varName = tranition.getAction().toString().substring(2);
-                    String channelName = Character.toString(tranition.getAction().toString().charAt(0));
-                    Object currentQueue = currentAssignments.get(channelName);
-                    if (currentQueue != null && ((List) currentQueue).size() > 0) {
-                        Object newValue = ((List) currentQueue).remove(0);
-                        nextAssignment.put(varName, newValue);
-                        action = tranition.getAction();
-
-                        for (L location : currentLocations) {
-                            if (location.equals(tranition.getFrom())) {
-                                int indexOfLocation = nextLocations.indexOf(tranition.getFrom());
-                                nextLocations.remove(indexOfLocation);
-                                nextLocations.add(indexOfLocation, tranition.getTo());
+                    if (pgTransition.getFrom().equals(state.first.get(i))) {
+                        boolean conditionMatched = true;
+                        for (ConditionDef conditionDef : conditionDefs) {
+                            if (!conditionDef.evaluate(state.second, pgTransition.getCondition())) {
+                                conditionMatched = false;
                             }
                         }
 
-                        Pair<List<L>, Map<String, Object>> nextState = walkChannelSystem(ts, cs, nextLocations, nextAssignment, false);
-                        ts.addAction(action);
-                        Transition<Pair<List<L>, Map<String, Object>>, A> transitionToAdd = new Transition<Pair<List<L>, Map<String, Object>>, A>(currentState, action, nextState);
-                        ts.addState(currentState);
-                        ts.addTransition(transitionToAdd);
-                    }
-                }
+                        if (conditionMatched) {
 
-                //Sync recievers
-                if (messageIsGetFromQueueSync(tranition.getAction().toString())) {
-                    String varName = subMessageInSyncQueue(tranition.getAction().toString());
-
-                    boolean foundMatchingSync = false;
-                    for (PGTransition<L, A> matchingTransition : transitionList) {
-                        if (messageIsSendToQueueSync(tranition.getAction().toString())) {
-                            if (varName.equals(subMessageInSyncQueue(tranition.getAction().toString()))) {
-                                foundMatchingSync = true;
-                                action = (A) (subMessageInSyncQueue(tranition.getAction().toString()) + "|" + varName);
-
-                                for (L location : currentLocations) {
-                                    if (location.equals(tranition.getFrom())) {
-                                        int indexOfLocation = nextLocations.indexOf(tranition.getFrom());
-                                        nextLocations.remove(indexOfLocation);
-                                        nextLocations.add(indexOfLocation, tranition.getTo());
+                            Map<String, Object> eval = state.second;
+                            if (parserBasedInterleavingActDef.isOneSidedAction(pgTransition.getAction().toString())) {
+                                possibleTransitions.get(i).add(pgTransition);
+                                continue;
+                            } else {
+                                if (parserBasedInterleavingActDef.isMatchingAction(pgTransition.getAction())) {
+                                    eval = parserBasedInterleavingActDef.effect(eval, pgTransition.getAction());
+                                } else {
+                                    eval = parserBasedActDef.effect(eval, pgTransition.getAction());
+                                    if (eval == null) {
+                                        possibleTransitions.get(i).add(pgTransition);
+                                        continue;
                                     }
                                 }
 
-                                Pair<List<L>, Map<String, Object>> nextState = walkChannelSystem(ts, cs, nextLocations, nextAssignment, false);
-                                ts.addAction(action);
-                                Transition<Pair<List<L>, Map<String, Object>>, A> transitionToAdd = new Transition<Pair<List<L>, Map<String, Object>>, A>(currentState, action, nextState);
-                                ts.addTransition(transitionToAdd);
+                                List<L> location = new ArrayList<L>(state.first);
+                                location.set(i, pgTransition.getTo());
+
+                                Pair<List<L>, Map<String, Object>> newState = p(location, eval);
+
+                                transitionSystem.addState(newState);
+                                transitionSystem.addAction(pgTransition.getAction());
+                                transitionSystem.addTransition(new Transition<Pair<List<L>, Map<String, Object>>, A>(state, pgTransition.getAction(), newState));
+
+                                if (!states.contains(newState)) {
+                                    states.add(newState);
+                                }
                             }
                         }
                     }
                 }
+            }
 
-                //Sync senders
-                if (messageIsSendToQueueSync(tranition.getAction().toString())) {
-                    String varName = subMessageInSyncQueue(tranition.getAction().toString());
+            for (int i = 0; i < possibleTransitions.size(); i++) {
+                List<PGTransition<L, A>> firstPossibleTransitions = possibleTransitions.get(i);
+                for (int j = i + 1; j < possibleTransitions.size(); j++) {
+                    List<PGTransition<L, A>> secondPossibleTransitions = possibleTransitions.get(j);
+                    for (int t = 0; t < possibleTransitions.get(i).size(); t++) {
+                        for (int t2 = 0; t2 < possibleTransitions.get(j).size(); t2++) {
+                            String action = firstPossibleTransitions.get(t).getAction() + " | " + secondPossibleTransitions.get(t2).getAction();
+                            Map<String, Object> eval = state.second;
+                            if (parserBasedInterleavingActDef.isMatchingAction(action)) {
+                                eval = parserBasedInterleavingActDef.effect(eval, action);
 
-                    boolean foundMatchingSync = false;
-                    for (PGTransition<L, A> matchingTransition : transitionList) {
-                        if (messageIsGetFromQueueSync(tranition.getAction().toString())) {
-                            if (varName.equals(subMessageInSyncQueue(tranition.getAction().toString()))) {
-                                foundMatchingSync = true;
+                                if (eval != null) {
 
-                                for (L location : currentLocations) {
-                                    if (location.equals(tranition.getFrom())) {
-                                        int indexOfLocation = nextLocations.indexOf(tranition.getFrom());
-                                        nextLocations.remove(indexOfLocation);
-                                        nextLocations.add(indexOfLocation, tranition.getTo());
+
+                                    List<L> location = new ArrayList<L>(state.first);
+                                    location.set(i, firstPossibleTransitions.get(t).getTo());
+                                    location.set(j, secondPossibleTransitions.get(t2).getTo());
+
+                                    Pair<List<L>, Map<String, Object>> newState = p(location, eval);
+
+                                    transitionSystem.addState(newState);
+                                    transitionSystem.addAction((A) action);
+                                    transitionSystem.addTransition(new Transition<Pair<List<L>, Map<String, Object>>, A>(state, (A) action, newState));
+
+                                    if (!states.contains(newState)) {
+                                        states.add(newState);
                                     }
                                 }
-
-                                Pair<List<L>, Map<String, Object>> nextState = walkChannelSystem(ts, cs, nextLocations, nextAssignment, false);
-                                ts.addAction(action);
-                                Transition<Pair<List<L>, Map<String, Object>>, A> transitionToAdd = new Transition<Pair<List<L>, Map<String, Object>>, A>(currentState, action, nextState);
-                                ts.addTransition(transitionToAdd);
                             }
                         }
                     }
                 }
+            }
 
-                //Sender
-                if (messageIsSendToQueue(tranition.getAction().toString())) {
-                    Object valueToSendToChannel = tranition.getAction().toString().substring(2);
-                    String channelName = Character.toString(tranition.getAction().toString().charAt(0));
-
-                    List currentAssignmentToChannel = (List)nextAssignment.getOrDefault(channelName, new LinkedList<>());
-                    currentAssignmentToChannel = new LinkedList(currentAssignmentToChannel);
-                    currentAssignmentToChannel.add(valueToSendToChannel);
-                    nextAssignment.put(channelName, currentAssignmentToChannel);
-
-                    for (L location : currentLocations) {
-                        if (location.equals(tranition.getFrom())) {
-                            int indexOfLocation = nextLocations.indexOf(tranition.getFrom());
-                            nextLocations.remove(indexOfLocation);
-                            nextLocations.add(indexOfLocation, tranition.getTo());
-                        }
-                    }
-
-                    Pair<List<L>, Map<String, Object>> nextState = walkChannelSystem(ts, cs, nextLocations, nextAssignment, false);
-                    ts.addAction(action);
-                    Transition<Pair<List<L>, Map<String, Object>>, A> transitionToAdd = new Transition<Pair<List<L>, Map<String, Object>>, A>(currentState, action, nextState);
-                    ts.addTransition(transitionToAdd);
-                }
-
-                //No action
-                String message = tranition.getAction().toString();
-                if (!messageIsGetFromQueueSync(message) && !messageIsGetFromQueue(message) && !messageIsSendToQueue(message) && !messageIsSendToQueueSync(message)) {
-                    for (L location : currentLocations) {
-                        if (location.equals(tranition.getFrom())) {
-                            int indexOfLocation = nextLocations.indexOf(tranition.getFrom());
-                            nextLocations.remove(indexOfLocation);
-                            nextLocations.add(indexOfLocation, tranition.getTo());
-                        }
-                    }
-
-                    Pair<List<L>, Map<String, Object>> nextState = walkChannelSystem(ts, cs, nextLocations, nextAssignment, false);
-                    ts.addAction(action);
-                    Transition<Pair<List<L>, Map<String, Object>>, A> transitionToAdd = new Transition<Pair<List<L>, Map<String, Object>>, A>(currentState, action, nextState);
-                    ts.addTransition(transitionToAdd);
-                }
-            } //Finish for loop for all transitions
         }
 
-        return currentState;
+
+        return transitionSystem;
     }
 
 
-    private boolean messageIsSendToQueue (String message) {
-        if (message.length() > 2 && Character.isUpperCase(message.charAt(0)) && message.charAt(1) == '!') {
-            return true;
+    private <L, A> List<List<L>> extractInitialLocations(List<L> prev, List<ProgramGraph<L, A>> programGraphs) {
+        List<List<L>> result = new ArrayList<>();
+        if (programGraphs.size() == 0) {
+            result.add(prev);
+        } else {
+
+            ProgramGraph<L, A> programGraph = programGraphs.get(0);
+            for (L location : programGraph.getInitialLocations()) {
+                List<L> loc = new ArrayList<>(prev);
+                loc.add(location);
+                List<ProgramGraph<L, A>> nextGraphs = new ArrayList<>(programGraphs);
+                nextGraphs.remove(0);
+                result.addAll(extractInitialLocations(loc, nextGraphs));
+            }
         }
-        return false;
+
+        return result;
     }
 
-    private boolean messageIsGetFromQueue (String message) {
-        if (message.length() > 2 && Character.isUpperCase(message.charAt(0)) && message.charAt(1) == '?') {
-            return true;
-        }
-        return false;
-    }
 
-    private boolean messageIsSendToQueueSync (String message) {
-        if (message.length() > 2 && message.charAt(0) == '_' && message.charAt(message.length() - 1) == '!') {
-            return true;
-        }
-        return false;
-    }
-
-    private boolean messageIsGetFromQueueSync (String message) {
-        if (message.length() > 2 && message.charAt(0) == '_' && message.charAt(message.length() - 1) == '?') {
-            return true;
-        }
-        return false;
-    }
-
-    private String subMessageInSyncQueue (String message) {
-        if (message.length() > 2) {
-            return message.substring(1, message.length() - 1);
-        }
-        return message;
-        
-    }
-
+    /*no need for hw2*/
     @Override
     public <Sts, Saut, A, P> TransitionSystem<Pair<Sts, Saut>, A, Saut> product(TransitionSystem<Sts, A, P> ts, Automaton<Saut, P> aut) {
         throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement product
     }
+/*no need for hw2*/
 
-    /*TODO*/
+    
     @Override
     public ProgramGraph<String, String> programGraphFromNanoPromela(String filename) throws Exception {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement programGraphFromNanoPromela
-    }
+    	  NanoPromelaParser.StmtContext root = NanoPromelaFileReader.pareseNanoPromelaFile(filename);
+          return programGraphFromStmtContext(root);
+         }
 
     @Override
     public ProgramGraph<String, String> programGraphFromNanoPromelaString(String nanopromela) throws Exception {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement programGraphFromNanoPromelaString
-    }
+    	NanoPromelaParser.StmtContext root = NanoPromelaFileReader.pareseNanoPromelaString(nanopromela);
+        return programGraphFromStmtContext(root);
+        }
 
     @Override
     public ProgramGraph<String, String> programGraphFromNanoPromela(InputStream inputStream) throws Exception {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement programGraphFromNanoPromela
+    	NanoPromelaParser.StmtContext root = NanoPromelaFileReader.parseNanoPromelaStream(inputStream);
+        return programGraphFromStmtContext(root);
     }
 
     @Override
@@ -1040,6 +938,265 @@ public class FvmFacadeImpl implements FvmFacade {
     public <L> Automaton<?, L> GNBA2NBA(MultiColorAutomaton<?, L> mulAut) {
         throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement GNBA2NBA
     }
+    
+    
+    private ProgramGraph<String, String> programGraphFromStmtContext(NanoPromelaParser.StmtContext root) {
 
+        ProgramGraph<String, String> programGraph = createProgramGraph();
+        StmtNode rootNode = new StmtNode(root, "");
+
+        // initial
+        programGraph.addInitialLocation(rootNode.getStateString());
+
+        // exit
+        programGraph.addLocation("");
+
+        List<StmtNode> stmtNodes = new ArrayList<>();
+        stmtNodes.add(rootNode);
+        for (int i = 0; i < stmtNodes.size(); i++) {
+            StmtNode node = stmtNodes.get(i);
+            switch (node.getType()) {
+                case ENDING:
+                    programGraph.addLocation(node.getStateString());
+                    programGraph.addTransition(node.getTransaction());
+                    break;
+                case IF:
+                    handleIfstmt(stmtNodes, programGraph, node);
+                    break;
+                case DO:
+                    handleDostmt(stmtNodes, programGraph, node);
+                    break;
+                case STMTSTMT:
+                    handleStmtStmt(stmtNodes, programGraph, node);
+                    break;
+            }
+        }
+
+        return programGraph;
+    }
+
+    private void handleStmtStmt(List<StmtNode> stmtNodes, ProgramGraph<String, String> programGraph, StmtNode state) {
+        Pair<StmtNode, StmtNode> split = state.split();
+        if (split.first.getType() == StmtNode.Type.ENDING) {
+            programGraph.addTransition(split.first.getTransaction());
+        } else {
+            stmtNodes.add(split.first);
+        }
+
+        stmtNodes.add(split.second);
+    }
+
+    private void handleIfstmt(List<StmtNode> stmtNodes, ProgramGraph<String, String> programGraph, StmtNode state) {
+
+        if (state.parent == null || state.parent.getType() != StmtNode.Type.IF) {
+            programGraph.addLocation(state.getStateString());
+        }
+
+        for (int i = 0; i < state.root.ifstmt().option().size(); i++) {
+            NanoPromelaParser.OptionContext option = state.root.ifstmt().option(i);
+            String condition = "(" + option.boolexpr().getText() + ")";
+            StmtNode optionStmt = new StmtNode(option.stmt(), state.next, condition, state);
+            handleOptionStmt(stmtNodes, programGraph, optionStmt);
+        }
+    }
+
+    private void handleDostmt(List<StmtNode> stmtNodes, ProgramGraph<String, String> programGraph, StmtNode state) {
+        programGraph.addLocation(state.getStateString());
+        StmtNode exitNode = new StmtNode(state.root, state.next, "", state, true);
+
+        for (int i = 0; i < state.root.dostmt().option().size(); i++) {
+            NanoPromelaParser.OptionContext option = state.root.dostmt().option(i);
+
+            String condition = "(" + option.boolexpr().getText() + ")";
+            StmtNode optionStmt = new StmtNode(option.stmt(), state.getStateString(), condition, state);
+            exitNode.appendCondition(condition);
+
+            handleOptionStmt(stmtNodes, programGraph, optionStmt);
+
+
+            StmtNode innerOptionStmt = optionStmt.clone();
+            innerOptionStmt.parent = state.clone();
+            innerOptionStmt.parent.parent = null;
+            innerOptionStmt.parent.condition = "";
+            handleOptionStmt(stmtNodes, programGraph, innerOptionStmt);
+        }
+
+        exitNode.condition = "!(" + exitNode.condition + ")";
+        programGraph.addTransition(exitNode.getTransaction());
+
+
+        StmtNode innerExitNode = exitNode.clone();
+        innerExitNode.parent = state.clone();
+        innerExitNode.parent.parent = null;
+        innerExitNode.parent.condition = "";
+        programGraph.addTransition(innerExitNode.getTransaction());
+    }
+
+    private void handleOptionStmt(List<StmtNode> stmtNodes, ProgramGraph<String, String> programGraph, StmtNode optionStmt) {
+        switch (optionStmt.getType()) {
+            case ENDING:
+                programGraph.addTransition(optionStmt.getTransaction());
+                break;
+
+            case IF:
+                stmtNodes.add(optionStmt);
+                break;
+
+            case DO:
+                stmtNodes.add(optionStmt);
+                break;
+
+            case STMTSTMT:
+                Pair<StmtNode, StmtNode> split = optionStmt.split();
+                if (split.first.getType() == StmtNode.Type.ENDING) {
+                    programGraph.addTransition(split.first.getTransaction());
+                } else {
+                    stmtNodes.add(split.first);
+                }
+
+                stmtNodes.add(split.second);
+                break;
+        }
+    }
+
+
+    private static class StmtNode {
+
+        private NanoPromelaParser.StmtContext root;
+        private StmtNode parent;
+        private String condition;
+        private String next;
+        private boolean exit;
+
+        public StmtNode(NanoPromelaParser.StmtContext root, String next) {
+            this.root = root;
+            this.next = next;
+            this.exit = false;
+            this.condition = "";
+        }
+
+        public StmtNode(NanoPromelaParser.StmtContext root, String next, String condition) {
+            this(root, next);
+            this.condition = condition;
+        }
+
+        public StmtNode(NanoPromelaParser.StmtContext root, String next, String condition, StmtNode parent) {
+            this(root, next, condition);
+            this.parent = parent;
+        }
+
+
+        public StmtNode(NanoPromelaParser.StmtContext root, String next, String condition, StmtNode parent, boolean exit) {
+            this(root, next, condition, parent);
+            this.exit = exit;
+        }
+
+        public StmtNode clone() {
+            return new StmtNode(root, next, condition, parent, exit);
+        }
+
+        public void appendCondition(String condition) {
+            if (this.condition.isEmpty()) {
+                this.condition = condition;
+            } else {
+                this.condition = this.condition + "||" + condition;
+            }
+        }
+
+        public String getConditionsString() {
+            String result = condition;
+
+            StmtNode parent = this.parent;
+            while (parent != null) {
+                if (!parent.condition.isEmpty()) {
+                    result = parent.condition + " && (" + result + ")";
+                } else {
+                    break;
+                }
+                parent = parent.parent;
+            }
+            return result;
+        }
+
+        public String getStateString() {
+            return root.getText() + (next.isEmpty() ? "" : ";") + next;
+        }
+
+        public PGTransition<String, String> getTransaction() {
+
+            StmtNode parent = this.parent;
+            if (parent == null) {
+
+                if (exit) {
+
+                    return new PGTransition(getStateString(),
+                            getConditionsString(),
+                            "",
+                            next);
+                } else {
+                    return new PGTransition(getStateString(),
+                            getConditionsString(),
+                            root.getText(),
+                            next);
+                }
+
+            } else {
+
+                while (parent.parent != null) {
+
+                    if (parent.getType() == Type.ENDING) {
+                        break;
+                    } else {
+                        parent = parent.parent;
+
+                    }
+                }
+
+                if (getType() == Type.ENDING) {
+                    return new PGTransition(parent.getStateString(),
+                            getConditionsString(),
+                            root.getText(),
+                            next);
+                } else {
+                    return new PGTransition(parent.getStateString(),
+                            getConditionsString(),
+                            "",
+                            next);
+                }
+            }
+        }
+
+        public Pair<StmtNode, StmtNode> split() {
+            StmtNode second = new StmtNode(root.stmt(1), next, "", null);
+            StmtNode first = new StmtNode(root.stmt(0), second.getStateString(), condition, parent);
+
+            return p(first, second);
+        }
+
+
+        public Type getType() {
+            if (root.assstmt() != null || root.chanreadstmt() != null || root.chanwritestmt() != null || root.atomicstmt() != null || root.skipstmt() != null) {
+                return Type.ENDING;
+            } else if (root.ifstmt() != null) {
+                return Type.IF;
+            } else if (root.dostmt() != null) {
+                return Type.DO;
+            } else {
+                return Type.STMTSTMT;
+            }
+        }
+
+        public void appendNext(String stateString) {
+            if (next.isEmpty()) {
+                next = stateString;
+            } else {
+                next = stateString + ";" + next;
+            }
+        }
+
+        enum Type {
+            ENDING, IF, DO, STMTSTMT
+        }
+    }
    
 }
