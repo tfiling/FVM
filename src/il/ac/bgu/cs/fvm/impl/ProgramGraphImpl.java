@@ -5,14 +5,11 @@ import il.ac.bgu.cs.fvm.programgraph.ProgramGraph;
 
 import java.util.*;
 
-/**
- * Created by Nir on 12/14/16.
- */
+
 public class ProgramGraphImpl<L, A> implements ProgramGraph<L, A> {
 
 
     private Set<List<String>> mInitializations;
-    private Map<String, Object> mInitialEval;
     private Set<L> mInitialLocations, mLocations;
     private Set<PGTransition<L, A>> mTransitions;
     private String mName;
@@ -20,7 +17,7 @@ public class ProgramGraphImpl<L, A> implements ProgramGraph<L, A> {
 
     public ProgramGraphImpl() {
         mInitializations = new HashSet<>();
-        mInitialEval = new LinkedHashMap<String, Object>();
+        new LinkedHashMap<String, Object>();
         mInitialLocations = new HashSet<L>();
         mLocations = new HashSet<L>();
         mTransitions = new HashSet<>();
