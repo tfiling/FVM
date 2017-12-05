@@ -504,7 +504,7 @@ public class FvmFacadeImpl implements FvmFacade {
                 registerInitialValues.put(regName, new Boolean(false));
             }
 
-            Pair<Map<String, Boolean>, Map<String, Boolean>> initialState = new Pair<>(registerInitialValues, inputInitialValues);
+            Pair<Map<String, Boolean>, Map<String, Boolean>> initialState = new Pair<>(inputInitialValues, registerInitialValues);
             walkThroughtCircut(c, transitionSystem, true, initialState);
         }
 
@@ -599,7 +599,7 @@ public class FvmFacadeImpl implements FvmFacade {
         }
 
         //Labeling
-        Map<String, Boolean> currentStateRegisters = initialState.first;
+        Map<String, Boolean> currentStateRegisters = initialState.second;
         Set<String> currentStateRegistersNames = currentStateRegisters.keySet();
         Object[] RegNames = currentStateRegistersNames.toArray();
         int j=0;
@@ -613,7 +613,7 @@ public class FvmFacadeImpl implements FvmFacade {
         	++j;
         }
        
-        Map<String, Boolean>  currentStateInput = initialState.second;
+        Map<String, Boolean>  currentStateInput = initialState.first;
         Set<String> currentStateInputNames = currentStateInput.keySet();
         Object[] InNames = currentStateInputNames.toArray();
         j=0;
@@ -627,7 +627,7 @@ public class FvmFacadeImpl implements FvmFacade {
         	++j;
         }
         
-        Map<String, Boolean>  currentStateOutput = c.computeOutputs(currentStateRegisters, currentStateInput);
+        Map<String, Boolean>  currentStateOutput = c.computeOutputs(currentStateInput, currentStateRegisters);
         Set<String> currentStateOutputNames = currentStateOutput.keySet();
         Object[] OutNames = currentStateOutputNames.toArray();
         j=0;
@@ -648,7 +648,7 @@ public class FvmFacadeImpl implements FvmFacade {
         for (Map<String, Boolean>  inputValue : fullTruthTableForInputs) {
         	Map<String, Boolean>  updatedRegisters = c.updateRegisters(initialState.first, initialState.second);
 
-            Pair<Map<String, Boolean> , Map<String, Boolean>> nextState = new Pair<>(updatedRegisters, inputValue);
+            Pair<Map<String, Boolean> , Map<String, Boolean>> nextState = new Pair<>(inputValue, updatedRegisters);
             walkThroughtCircut(c, transitionSystem, false, nextState);
 
             //Transitions
