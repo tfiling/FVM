@@ -848,7 +848,7 @@ public class FvmFacadeImpl implements FvmFacade {
                     List<PGTransition<L, A>> secondPossibleTransitions = possibleTransitions.get(j);
                     for (int t = 0; t < possibleTransitions.get(i).size(); t++) {
                         for (int t2 = 0; t2 < possibleTransitions.get(j).size(); t2++) {
-                            String action = firstPossibleTransitions.get(t).getAction() + " | " + secondPossibleTransitions.get(t2).getAction();
+                            String action = firstPossibleTransitions.get(t).getAction() + "|" + secondPossibleTransitions.get(t2).getAction();
                             Map<String, Object> eval = state.second;
                             if (parserBasedInterleavingActDef.isMatchingAction(action)) {
                                 eval = parserBasedInterleavingActDef.effect(eval, action);
