@@ -10,6 +10,7 @@ public class ProgramGraphImpl<L, A> implements ProgramGraph<L, A> {
 
 
     private Set<List<String>> mInitializations;
+    private Map<String, Object> mInitialEval;
     private Set<L> mInitialLocations, mLocations;
     private Set<PGTransition<L, A>> mTransitions;
     private String mName;
@@ -17,7 +18,7 @@ public class ProgramGraphImpl<L, A> implements ProgramGraph<L, A> {
 
     public ProgramGraphImpl() {
         mInitializations = new HashSet<>();
-        new LinkedHashMap<String, Object>();
+        mInitialEval = new LinkedHashMap<String, Object>();
         mInitialLocations = new HashSet<L>();
         mLocations = new HashSet<L>();
         mTransitions = new HashSet<>();
@@ -55,6 +56,11 @@ public class ProgramGraphImpl<L, A> implements ProgramGraph<L, A> {
 
     @Override
     public Set<L> getLocations() {
+    	if (mInitialLocations.size() > 0)
+    	{
+    		for (L loc : mInitialLocations)
+    		mLocations.add(loc);
+    	}
         return mLocations;
     }
 
