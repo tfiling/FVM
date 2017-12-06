@@ -8,84 +8,82 @@ import java.util.*;
 
 public class ProgramGraphImpl<L, A> implements ProgramGraph<L, A> {
 
+    private String _PgName;
+    private Set<List<String>> _PgInitialize;
+    private Set<L> _PgInitLocs, _PgAllLocs;
+    private Set<PGTransition<L, A>> _PgAllTS;
 
-    private Set<List<String>> mInitializations;
-    private Map<String, Object> mInitialEval;
-    private Set<L> mInitialLocations, mLocations;
-    private Set<PGTransition<L, A>> mTransitions;
-    private String mName;
 
 
     public ProgramGraphImpl() {
-        mInitializations = new HashSet<>();
-        mInitialEval = new LinkedHashMap<String, Object>();
-        mInitialLocations = new HashSet<L>();
-        mLocations = new HashSet<L>();
-        mTransitions = new HashSet<>();
+        _PgInitialize = new HashSet<>();
+        _PgInitLocs = new HashSet<L>();
+        _PgAllLocs = new HashSet<L>();
+        _PgAllTS = new HashSet<>();
     }
 
     @Override
     public void addInitalization(List<String> init) {
-        mInitializations.add(init);
+        _PgInitialize.add(init);
     }
 
     @Override
     public void addInitialLocation(L location) {
-        mInitialLocations.add(location);
+        _PgInitLocs.add(location);
     }
 
     @Override
     public void addLocation(L l) {
-        mLocations.add(l);
+        _PgAllLocs.add(l);
     }
 
     @Override
     public void addTransition(PGTransition<L, A> t) {
-        mTransitions.add(t);
+        _PgAllTS.add(t);
     }
 
     @Override
     public Set<List<String>> getInitalizations() {
-        return mInitializations;
+        return _PgInitialize;
     }
 
     @Override
     public Set<L> getInitialLocations() {
-        return mInitialLocations;
+        return _PgInitLocs;
     }
 
     @Override
     public Set<L> getLocations() {
-    	if (mInitialLocations.size() > 0)
+    	if (_PgInitLocs.size() > 0)
     	{
-    		for (L loc : mInitialLocations)
-    		mLocations.add(loc);
+    		for (L loc : _PgInitLocs)
+    		_PgAllLocs.add(loc);
     	}
-        return mLocations;
+        return _PgAllLocs;
     }
 
     @Override
     public String getName() {
-        return mName;
+        return _PgName;
     }
 
     @Override
     public Set<PGTransition<L, A>> getTransitions() {
-        return mTransitions;
+        return _PgAllTS;
     }
 
     @Override
     public void removeLocation(L l) {
-        mLocations.remove(l);
+        _PgAllLocs.remove(l);
     }
 
     @Override
     public void removeTransition(PGTransition<L, A> t) {
-        mTransitions.remove(t);
+        _PgAllTS.remove(t);
     }
 
     @Override
     public void setName(String name) {
-        mName = name;
+        _PgName = name;
     }
 }
