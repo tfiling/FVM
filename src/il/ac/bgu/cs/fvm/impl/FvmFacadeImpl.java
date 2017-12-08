@@ -914,19 +914,19 @@ public boolean _debugFLAG =false;
     @Override
     public ProgramGraph<String, String> programGraphFromNanoPromela(String filename) throws Exception {
     	  NanoPromelaParser.StmtContext root = NanoPromelaFileReader.pareseNanoPromelaFile(filename);
-          return pgWithStmt(root);
+          return checkKindStmtPG(root);
          }
 
     @Override
     public ProgramGraph<String, String> programGraphFromNanoPromelaString(String nanopromela) throws Exception {
     	NanoPromelaParser.StmtContext root = NanoPromelaFileReader.pareseNanoPromelaString(nanopromela);
-        return pgWithStmt(root);
+        return checkKindStmtPG(root);
         }
 
     @Override
     public ProgramGraph<String, String> programGraphFromNanoPromela(InputStream inputStream) throws Exception {
     	NanoPromelaParser.StmtContext root = NanoPromelaFileReader.parseNanoPromelaStream(inputStream);
-        return pgWithStmt(root);
+        return checkKindStmtPG(root);
     }
 
     @Override
@@ -945,55 +945,71 @@ public boolean _debugFLAG =false;
     }
     
     
-    private ProgramGraph<String, String> pgWithStmt(NanoPromelaParser.StmtContext root) {
+    private ProgramGraph<String, String> checkKindStmtPG(NanoPromelaParser.StmtContext root) {
 
         ProgramGraph<String, String> _PG = createProgramGraph();
         NanoStmt rootNode = new NanoStmt(root, "");
-
         // initial
         _PG.addInitialLocation(rootNode.getState());
-
-        // exit
+        // DONE 
         _PG.addLocation("");
-
-        List<NanoStmt> stmtNodes = new ArrayList<>();
-        stmtNodes.add(rootNode);
-        for (int i = 0; i < stmtNodes.size(); i++) {
-            NanoStmt node = stmtNodes.get(i);
+       
+        List<NanoStmt> stmt = new ArrayList<>();
+        stmt.add(rootNode);
+        NanoStmt node;
+        for (int i = 0; i < stmt.size(); i++) {
+            node = stmt.get(i);
+            if (this._debugFLAG)
+            {
+            	System.out.println("Checking Kind..." + node.toString());
+            }
             switch (node.getStmtKind()) {
-                case DONE:
-                    _PG.addLocation(node.getState());
-                    _PG.addTransition(node.getTrans());
-                    break;
-                case IF:
-                    handleIfstmt(stmtNodes, _PG, node);
-                    break;
-                case DO:
-                    handleDostmt(stmtNodes, _PG, node);
-                    break;
-                case STMTSTMT:
-                    handleStmtStmt(stmtNodes, _PG, node);
-                    break;
+            case DO:
+                handleDostmt(stmt, _PG, node);
+                break;
+            case DONE:
+                _PG.addLocation(node.getState());
+                _PG.addTransition(node.getTrans());
+                break;
+            case STMTSTMT:
+                handleAppendedStmt(stmt, _PG, node);
+                break;
+            case IF:
+                handleIfstmt(stmt, _PG, node);
+                break;                      
             }
         }
 
         return _PG;
     }
 
-    private void handleStmtStmt(List<NanoStmt> stmtNodes, ProgramGraph<String, String> programGraph, NanoStmt state) {
-        Pair<NanoStmt, NanoStmt> split = state.breakStmt();
-        if (split.first.getStmtKind() == NanoStmt.Kind.DONE) {
-            programGraph.addTransition(split.first.getTrans());
+    private void handleAppendedStmt(List<NanoStmt> stmtNodes, ProgramGraph<String, String> programGraph, NanoStmt state) {
+        Pair<NanoStmt, NanoStmt> splitedStmt = state.breakStmt();
+        if (splitedStmt.first.getStmtKind() == NanoStmt.Kind.DONE) {
+        	if (this._debugFLAG)
+            {
+            	System.out.println("In appended STMT there is Done stmt" + splitedStmt.first.toString());
+            }
+        	
+            programGraph.addTransition(splitedStmt.first.getTrans());
         } else {
-            stmtNodes.add(split.first);
+        	if (this._debugFLAG)
+            {
+            	System.out.println("In appended STMT there is trans stmt" + splitedStmt.first.toString());
+            }
+            stmtNodes.add(splitedStmt.first);
         }
 
-        stmtNodes.add(split.second);
+        stmtNodes.add(splitedStmt.second);
     }
 
     private void handleIfstmt(List<NanoStmt> stmtNodes, ProgramGraph<String, String> programGraph, NanoStmt state) {
 
         if (state._StmtMainNode == null || state._StmtMainNode.getStmtKind() != NanoStmt.Kind.IF) {
+        	if (this._debugFLAG)
+            {
+            	System.out.println("In handle IF STMT, adding new location" + state.toString());
+            }
             programGraph.addLocation(state.getState());
         }
 
@@ -1001,65 +1017,89 @@ public boolean _debugFLAG =false;
             NanoPromelaParser.OptionContext option = state._rootNano.ifstmt().option(i);
             String condition = "(" + option.boolexpr().getText() + ")";
             NanoStmt optionStmt = new NanoStmt(option.stmt(), state._nextStmt, condition, state);
-            handleOptionStmt(stmtNodes, programGraph, optionStmt);
+            if (this._debugFLAG)
+            {
+            	System.out.println("In handle IF STMT, seding to handle STMT" + optionStmt.toString());
+            }
+            handleStmt(stmtNodes, programGraph, optionStmt);
         }
     }
 
-    private void handleDostmt(List<NanoStmt> stmtNodes, ProgramGraph<String, String> programGraph, NanoStmt state) {
-        programGraph.addLocation(state.getState());
-        NanoStmt exitNode = new NanoStmt(state._rootNano, state._nextStmt, "", state, true);
+    private void handleDostmt(List<NanoStmt> stmtNodes, ProgramGraph<String, String> PG, NanoStmt nanoStmt) {
+      
+    	NanoStmt doneStmt = new NanoStmt(nanoStmt._rootNano, nanoStmt._nextStmt, "", nanoStmt, true);
+    	PG.addLocation(nanoStmt.getState());
+        
+        if (this._debugFLAG)
+        {
+        	System.out.println("handle DO STMT...");
+        }
+        
+        for (int i = 0; i < nanoStmt._rootNano.dostmt().option().size(); ++i) 
+        {
+            NanoPromelaParser.OptionContext optNano = nanoStmt._rootNano.dostmt().option(i);
 
-        for (int i = 0; i < state._rootNano.dostmt().option().size(); i++) {
-            NanoPromelaParser.OptionContext option = state._rootNano.dostmt().option(i);
+            String condStmt = "(" + optNano.boolexpr().getText() + ")";
+            NanoStmt optionStmt = new NanoStmt(optNano.stmt(), nanoStmt.getState(), condStmt, nanoStmt);
+            doneStmt.consCondStmt(condStmt);
+            if (this._debugFLAG)
+            {
+            	System.out.println("about to handle regular STMT now...");
+            }       
+            handleStmt(stmtNodes, PG, optionStmt);
 
-            String condition = "(" + option.boolexpr().getText() + ")";
-            NanoStmt optionStmt = new NanoStmt(option.stmt(), state.getState(), condition, state);
-            exitNode.consCondStmt(condition);
-
-            handleOptionStmt(stmtNodes, programGraph, optionStmt);
-
-
-            NanoStmt innerOptionStmt = optionStmt.clone();
-            innerOptionStmt._StmtMainNode = state.clone();
-            innerOptionStmt._StmtMainNode._StmtMainNode = null;
-            innerOptionStmt._StmtMainNode._condStmt = "";
-            handleOptionStmt(stmtNodes, programGraph, innerOptionStmt);
+            NanoStmt agregOpt = optionStmt.clone();
+            agregOpt._StmtMainNode = nanoStmt.clone();
+            agregOpt._StmtMainNode._condStmt = "";
+            agregOpt._StmtMainNode._StmtMainNode = null;
+            handleStmt(stmtNodes, PG, agregOpt);
+            if (this._debugFLAG)
+            {
+            	System.out.println("handle STMT..." + agregOpt.toString());
+            }
+            
         }
 
-        exitNode._condStmt = "!(" + exitNode._condStmt + ")";
-        programGraph.addTransition(exitNode.getTrans());
-
-
-        NanoStmt innerExitNode = exitNode.clone();
-        innerExitNode._StmtMainNode = state.clone();
-        innerExitNode._StmtMainNode._StmtMainNode = null;
-        innerExitNode._StmtMainNode._condStmt = "";
-        programGraph.addTransition(innerExitNode.getTrans());
+        doneStmt._condStmt = "!(" + doneStmt._condStmt + ")";
+        PG.addTransition(doneStmt.getTrans());
+        if (this._debugFLAG)
+        {
+        	System.out.println("About addong new trans to PG" + doneStmt.getTrans().toString());
+        }
+        NanoStmt agregDoneStmt = doneStmt.clone();
+        agregDoneStmt._StmtMainNode = nanoStmt.clone();
+        agregDoneStmt._StmtMainNode._condStmt = "";
+        agregDoneStmt._StmtMainNode._StmtMainNode = null;
+        PG.addTransition(agregDoneStmt.getTrans());
+        if (this._debugFLAG)
+        {
+        	System.out.println("About addong new trans to PG" + agregDoneStmt.getTrans().toString());
+        }
     }
 
-    private void handleOptionStmt(List<NanoStmt> stmtNodes, ProgramGraph<String, String> programGraph, NanoStmt optionStmt) {
+    private void handleStmt(List<NanoStmt> stmtList, ProgramGraph<String, String> PG, NanoStmt optionStmt) {
         switch (optionStmt.getStmtKind()) {
             case DONE:
-                programGraph.addTransition(optionStmt.getTrans());
+                PG.addTransition(optionStmt.getTrans());
                 break;
 
             case IF:
-                stmtNodes.add(optionStmt);
+                stmtList.add(optionStmt);
                 break;
 
             case DO:
-                stmtNodes.add(optionStmt);
+                stmtList.add(optionStmt);
                 break;
 
             case STMTSTMT:
                 Pair<NanoStmt, NanoStmt> split = optionStmt.breakStmt();
                 if (split.first.getStmtKind() == NanoStmt.Kind.DONE) {
-                    programGraph.addTransition(split.first.getTrans());
+                    PG.addTransition(split.first.getTrans());
                 } else {
-                    stmtNodes.add(split.first);
+                    stmtList.add(split.first);
                 }
 
-                stmtNodes.add(split.second);
+                stmtList.add(split.second);
                 break;
         }
     }
