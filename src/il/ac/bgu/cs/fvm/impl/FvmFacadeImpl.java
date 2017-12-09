@@ -295,76 +295,72 @@ public class FvmFacadeImpl implements FvmFacade {
 	 *//////////////////////////////////////////
 
 	@Override
-	public <S1, S2, A, P> TransitionSystem<Pair<S1, S2>, A, P> interleave(TransitionSystem<S1, A, P> ts1, TransitionSystem<S2, A, P> ts2) {
+	public <S1, S2, A, P> TransitionSystem<Pair<S1, S2>, A, P> interleave(
+			TransitionSystem<S1, A, P> ts1, 
+			TransitionSystem<S2, A, P> ts2) {
 		return interleave(ts1, ts2, new HashSet<A>());
 	}
 
 	@Override
-	public <S1, S2, A, P> TransitionSystem<Pair<S1, S2>, A, P> interleave(TransitionSystem<S1, A, P> ts1, TransitionSystem<S2, A, P> ts2, Set<A> handShakingActions) {
-		TransitionSystem transitionSystem = createTransitionSystem();
+	public <S1, S2, A, P> TransitionSystem<Pair<S1, S2>, A, P> interleave(
+			TransitionSystem<S1, A, P> ts1, 
+			TransitionSystem<S2, A, P> ts2, 
+			Set<A> handShakingActions) {
+		TransitionSystem resultedTransitionSystem = createTransitionSystem();
 
-		// Extract actions
-		for (Object action : ts1.getActions()) {
-			transitionSystem.addAction(action);
-		}
+		uniteActionsAndAP(ts1, ts2, resultedTransitionSystem);
 
-		for (Object action : ts2.getActions()) {
-			transitionSystem.addAction(action);
-		}
-
-		// Extract AP
-		for (Object ap : ts1.getAtomicPropositions()) {
-			transitionSystem.addAtomicProposition(ap);
-		}
-
-		for (Object ap : ts2.getAtomicPropositions()) {
-			transitionSystem.addAtomicProposition(ap);
-		}
-
-		// Extract states and initials
-		for (Object s1 : ts1.getStates()) {
-			for (Object s2 : ts2.getStates()) {
-
-				Pair<S1, S2> state = p(s1, s2);
-				if (ts1.getInitialStates().contains(s1) && ts2.getInitialStates().contains(s2)) {
-					transitionSystem.addState(state);
-					transitionSystem.addInitialState(state);
-
-					Set<P> ap = ts1.getLabel(state.first);
-					if (ap.size() > 0) {
-						for (P p : ap) {
-							transitionSystem.addToLabel(state, p);
-						}
-					}
-					ap = ts2.getLabel(state.second);
-					if (ap.size() > 0) {
-						for (P p : ap) {
-							transitionSystem.addToLabel(state, p);
-						}
-					}
+		// generate all initial states - cartesian product
+		Iterator<S1> firstIt = ts1.getInitialStates().iterator();
+		while (firstIt.hasNext()) {
+			Iterator<S2> secondIt = ts2.getInitialStates().iterator();
+			while(secondIt.hasNext()) {
+				Object s1 = firstIt.next();
+				Object s2 = secondIt.next();
+				if (this._debugFLAG)
+				{
+					System.out.println(new String("initial state: " + s1.toString()+ ", " + s1.toString()));
 				}
+
+				Pair<S1, S2> newInitialState = p(s1, s2);
+
+				addNewState(ts1, ts2, resultedTransitionSystem, newInitialState);
+				resultedTransitionSystem.addInitialState(newInitialState);
+
 			}
 		}
 
-
 		// Transitions
-		List<Pair> states = new ArrayList<>(transitionSystem.getInitialStates());
+		List<Pair> states = new ArrayList<>(resultedTransitionSystem.getInitialStates());
 		for (int i = 0; i < states.size(); i++) {
 			Pair<S1, S2> state = states.get(i);
 
-			for (Transition t1 : ts1.getTransitions()) {
-				if (t1.getFrom().equals(state.first) && !handShakingActions.contains(t1.getAction())) {
-					Pair<S1, S2> toState = p(t1.getTo(), state.second);
-					addInterleaveState(ts1, ts2, transitionSystem, states, toState);
-					transitionSystem.addTransition(new Transition(state, t1.getAction(), toState));
+			Transition currentTransition;
+			Iterator<Transition<S1,A>> firstTransitionIterator = ts1.getTransitions().iterator();
+			while (firstTransitionIterator.hasNext()) {
+				currentTransition = firstTransitionIterator.next();
+				Pair<S1, S2> destState = p(currentTransition.getTo(), state.second);
+				if (currentTransition.getFrom().equals(state.first) && 
+						!handShakingActions.contains(currentTransition.getAction())) {
+					if (!states.contains(destState)){
+						states.add(destState);
+						addNewState(ts1, ts2, resultedTransitionSystem, destState);
+					}
+					resultedTransitionSystem.addTransition(new Transition(state, currentTransition.getAction(), destState));
 				}
 			}
 
-			for (Transition t2 : ts2.getTransitions()) {
-				if (t2.getFrom().equals(state.second) && !handShakingActions.contains(t2.getAction())) {
-					Pair<S1, S2> toState = p(state.first, t2.getTo());
-					addInterleaveState(ts1, ts2, transitionSystem, states, toState);
-					transitionSystem.addTransition(new Transition(state, t2.getAction(), toState));
+			Iterator<Transition<S2,A>> secondTransitionIterator = ts2.getTransitions().iterator();
+			while (secondTransitionIterator.hasNext()) {
+				currentTransition = secondTransitionIterator.next();
+				Pair<S1, S2> destState = p(state.first, currentTransition.getTo());
+				if (currentTransition.getFrom().equals(state.second) && 
+						!handShakingActions.contains(currentTransition.getAction())) {
+					if (!states.contains(destState)){
+						states.add(destState);
+						addNewState(ts1, ts2, resultedTransitionSystem, destState);
+					}
+					resultedTransitionSystem.addTransition(new Transition(state, currentTransition.getAction(), destState));
 				}
 			}
 
@@ -372,43 +368,81 @@ public class FvmFacadeImpl implements FvmFacade {
 				if (t1.getFrom().equals(state.first) && handShakingActions.contains(t1.getAction())) {
 					for (Transition t2 : ts2.getTransitions()) {
 						if (t2.getFrom().equals(state.second) && t1.getAction().equals(t2.getAction())) {
-							Pair<S1, S2> toState = p(t1.getTo(), t2.getTo());
-							addInterleaveState(ts1, ts2, transitionSystem, states, toState);
-							transitionSystem.addTransition(new Transition(state, t2.getAction(), toState));
+							Pair<S1, S2> destState = p(t1.getTo(), t2.getTo());
+							states.add(destState);
+							addNewState(ts1, ts2, resultedTransitionSystem, destState);
+							resultedTransitionSystem.addTransition(new Transition(state, t2.getAction(), destState));
 						}
 					}
 				}
 			}
 		}
 
-		return transitionSystem;
+		return resultedTransitionSystem;
 
 	}
 
-	private <S1, S2, A, P> void addInterleaveState(
+	private <S1, S2, A, P> void addNewState(
 			TransitionSystem<S1, A, P> ts1, 
 			TransitionSystem<S2, A, P> ts2, 
 			TransitionSystem transitionSystem, 
-			List<Pair> states, 
-			Pair<S1, S2> toState) {
+			Pair<S1, S2> state) {
 
-		if (!states.contains(toState)) {
-			states.add(toState);
-			transitionSystem.addState(toState);
-			Set<P> ap = ts1.getLabel(toState.first);
-			if (ap.size() > 0) {
-				for (P p : ap) {
-					transitionSystem.addToLabel(toState, p);
-				}
-			}
-			ap = ts2.getLabel(toState.second);
-			if (ap.size() > 0) {
-				for (P p : ap) {
-					transitionSystem.addToLabel(toState, p);
-				}
-			}
+		transitionSystem.addState(state);
+
+		Set<P> ap = ts1.getLabel(state.first);
+		Iterator<P> apIterator = ts1.getLabel(state.first).iterator();
+		while (apIterator.hasNext()) {
+			transitionSystem.addToLabel(state, apIterator.next());
+		}
+
+		apIterator = ts2.getLabel(state.second).iterator();
+		while (apIterator.hasNext()) {
+			transitionSystem.addToLabel(state, apIterator.next());
 		}
 	}
+
+	private <S1, S2, A, P>void uniteActionsAndAP(
+			TransitionSystem<S1, A, P> ts1, 
+			TransitionSystem<S2, A, P> ts2, 
+			TransitionSystem transitionSystem)
+	{
+		// unite actions from both transition systems
+		for (Object action : ts1.getActions()) {
+			if (this._debugFLAG)
+			{
+				System.out.println("appended action: " + action.toString());
+			}
+			transitionSystem.addAction(action);
+		}
+
+		for (Object action : ts2.getActions()) {
+			if (this._debugFLAG)
+			{
+				System.out.println("appended action: " + action.toString());
+			}
+			transitionSystem.addAction(action);
+		}
+
+		// unite AP from both transition systems
+		for (Object ap : ts1.getAtomicPropositions()) {
+			if (this._debugFLAG)
+			{
+				System.out.println("appended AP: " + ap.toString());
+			}
+			transitionSystem.addAtomicProposition(ap);
+		}
+
+		for (Object ap : ts2.getAtomicPropositions()) {
+			if (this._debugFLAG)
+			{
+				System.out.println("appended AP: " + ap.toString());
+			}
+			transitionSystem.addAtomicProposition(ap);
+		}
+
+	}
+
 
 	@Override
 	public <L, A> ProgramGraph<L, A> createProgramGraph() {
@@ -480,17 +514,17 @@ public class FvmFacadeImpl implements FvmFacade {
 
 	@Override               //States               						      //Actions            //Tags 
 	public TransitionSystem<Pair<Map<String, Boolean>, Map<String, Boolean>>, Map<String, Boolean>, Object> transitionSystemFromCircuit(Circuit c) {
-		TransitionSystem<Pair<Map<String,Boolean>, Map<String,Boolean>>, Map<String, Boolean>, Object> transitionSystem = new TransitionSystemImpl<>();
+		TransitionSystem<Pair<Map<String,Boolean>, Map<String,Boolean>>, Map<String, Boolean>, Object> resultedTransitionSystem = new TransitionSystemImpl<>();
 
 		//Atomic propositions
 		for (String inputPortName : c.getInputPortNames()) {
-			transitionSystem.addAtomicProposition(inputPortName);
+			resultedTransitionSystem.addAtomicProposition(inputPortName);
 		}
 		for (String registerName : c.getRegisterNames()) {
-			transitionSystem.addAtomicProposition(registerName);
+			resultedTransitionSystem.addAtomicProposition(registerName);
 		}
 		for (String outputPortName : c.getOutputPortNames()) {
-			transitionSystem.addAtomicProposition(outputPortName);
+			resultedTransitionSystem.addAtomicProposition(outputPortName);
 		}
 
 		//Apply all the possible combinations upon the inputs
@@ -498,7 +532,7 @@ public class FvmFacadeImpl implements FvmFacade {
 
 		//Actions
 		for (Map<String, Boolean> action : fullTruthTable) {
-			transitionSystem.addAction(action);
+			resultedTransitionSystem.addAction(action);
 		}
 
 
@@ -510,10 +544,10 @@ public class FvmFacadeImpl implements FvmFacade {
 			}
 
 			Pair<Map<String, Boolean>, Map<String, Boolean>> initialState = new Pair<>(inputInitialValues, registerInitialValues);
-			walkThroughtCircut(c, transitionSystem, true, initialState);
+			walkThroughtCircut(c, resultedTransitionSystem, true, initialState);
 		}
 
-		return transitionSystem;
+		return resultedTransitionSystem;
 	}
 
 	private Set<Map<String, Boolean>> fullTruthTable (Set<String> inputs) {
@@ -777,7 +811,7 @@ public class FvmFacadeImpl implements FvmFacade {
 		};
 
 		TransitionSystem<Pair<List<L>, Map<String, Object>>, A, String> transitionSystem = createTransitionSystem();
-		
+
 		//initial states and evals
 		List<List<L>> initialLocations = extractInitialLocations(new ArrayList<>(), cs.getProgramGraphs());
 		List<List<String>> initialEvals = extractInitialEvals(new ArrayList<>(), cs.getProgramGraphs());
@@ -874,14 +908,14 @@ public class FvmFacadeImpl implements FvmFacade {
 									transitionSystem.addAtomicProposition(atomic.getKey() + " = " + atomic.getValue());
 									transitionSystem.addToLabel(newState, atomic.getKey() + " = " + atomic.getValue());
 								}
-								
+
 								for (L loc : location)
 								{
 									transitionSystem.addAtomicProposition(loc.toString());
 									transitionSystem.addToLabel(newState, loc.toString());					
 								}
 
-								
+
 								if (!states.contains(newState)) {
 									states.add(newState);
 								}
@@ -914,20 +948,20 @@ public class FvmFacadeImpl implements FvmFacade {
 									transitionSystem.addState(newState);
 									transitionSystem.addAction((A) action);
 									transitionSystem.addTransition(new Transition<Pair<List<L>, Map<String, Object>>, A>(state, (A) action, newState));
-									
+
 									// Add AP and L
 									for (Map.Entry atomic : eval.entrySet()) {
 										transitionSystem.addAtomicProposition(atomic.getKey() + " = " + atomic.getValue());
 										transitionSystem.addToLabel(newState, atomic.getKey() + " = " + atomic.getValue());
 									}
-									
+
 									for (L loc : location)
 									{
 										transitionSystem.addAtomicProposition(loc.toString());
 										transitionSystem.addToLabel(newState, loc.toString());					
 									}
-									
-									
+
+
 									if (!states.contains(newState)) {
 										states.add(newState);
 									}
@@ -968,412 +1002,412 @@ public class FvmFacadeImpl implements FvmFacade {
 		List<List<String>> result = new ArrayList<>();
 
 
-        if (programGraphs.size() == 0) {
-            result.add(prev);
-        } else {
-            ProgramGraph<L, A> programGraph = programGraphs.get(0);
-            if (programGraph.getInitalizations().size() > 0)
-            {
-            	for (List<String> initialization : programGraph.getInitalizations()) {
-            		List<String> init = new ArrayList<>(prev);
-            		init.addAll(initialization);
-            		List<ProgramGraph<L, A>> nextGraphs = new ArrayList<>(programGraphs);
-            		nextGraphs.remove(0);
-            		result.addAll(extractInitialEvals(init, nextGraphs));
-            	}            	
-            }
-            else
-            {
-        		List<ProgramGraph<L, A>> nextGraphs = new ArrayList<>(programGraphs);
-        		nextGraphs.remove(0);
-        		result.addAll(extractInitialEvals(prev, nextGraphs));	
-            }
-        }
+		if (programGraphs.size() == 0) {
+			result.add(prev);
+		} else {
+			ProgramGraph<L, A> programGraph = programGraphs.get(0);
+			if (programGraph.getInitalizations().size() > 0)
+			{
+				for (List<String> initialization : programGraph.getInitalizations()) {
+					List<String> init = new ArrayList<>(prev);
+					init.addAll(initialization);
+					List<ProgramGraph<L, A>> nextGraphs = new ArrayList<>(programGraphs);
+					nextGraphs.remove(0);
+					result.addAll(extractInitialEvals(init, nextGraphs));
+				}            	
+			}
+			else
+			{
+				List<ProgramGraph<L, A>> nextGraphs = new ArrayList<>(programGraphs);
+				nextGraphs.remove(0);
+				result.addAll(extractInitialEvals(prev, nextGraphs));	
+			}
+		}
 
-        return result;
+		return result;
 	}
 
 
-    /*no need for hw2*/
-    @Override
-    public <Sts, Saut, A, P> TransitionSystem<Pair<Sts, Saut>, A, Saut> product(TransitionSystem<Sts, A, P> ts, Automaton<Saut, P> aut) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement product
-    }
-/*no need for hw2*/
-
-    
-    @Override
-    public ProgramGraph<String, String> programGraphFromNanoPromela(String filename) throws Exception {
-    	  NanoPromelaParser.StmtContext root = NanoPromelaFileReader.pareseNanoPromelaFile(filename);
-          return checkKindStmtPG(root);
-         }
-
-    @Override
-    public ProgramGraph<String, String> programGraphFromNanoPromelaString(String nanopromela) throws Exception {
-    	NanoPromelaParser.StmtContext root = NanoPromelaFileReader.pareseNanoPromelaString(nanopromela);
-        return checkKindStmtPG(root);
-        }
-
-    @Override
-    public ProgramGraph<String, String> programGraphFromNanoPromela(InputStream inputStream) throws Exception {
-    	NanoPromelaParser.StmtContext root = NanoPromelaFileReader.parseNanoPromelaStream(inputStream);
-        return checkKindStmtPG(root);
-    }
-
-    @Override
-    public <S, A, P, Saut> VerificationResult<S> verifyAnOmegaRegularProperty(TransitionSystem<S, A, P> ts, Automaton<Saut, P> aut) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement verifyAnOmegaRegularProperty
-    }
-
-    @Override
-    public <L> Automaton<?, L> LTL2NBA(LTL<L> ltl) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement LTL2NBA
-    }
-
-    @Override
-    public <L> Automaton<?, L> GNBA2NBA(MultiColorAutomaton<?, L> mulAut) {
-        throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement GNBA2NBA
-    }
-    
-    
-    private ProgramGraph<String, String> checkKindStmtPG(NanoPromelaParser.StmtContext root) {
-
-        ProgramGraph<String, String> _PG = createProgramGraph();
-        NanoStmt rootNode = new NanoStmt(root, "");
-        // initial
-        _PG.addInitialLocation(rootNode.getState());
-        // DONE 
-        _PG.addLocation("");
-       
-        List<NanoStmt> stmt = new ArrayList<>();
-        stmt.add(rootNode);
-        NanoStmt node;
-        for (int i = 0; i < stmt.size(); i++) {
-            node = stmt.get(i);
-            if (this._debugFLAG)
-            {
-            	System.out.println("Checking Kind..." + node.toString());
-            }
-            switch (node.getStmtKind()) {
-            case DO:
-                handleDostmt(stmt, _PG, node);
-                break;
-            case DONE:
-                _PG.addLocation(node.getState());
-                _PG.addTransition(node.getTrans());
-                break;
-            case STMTSTMT:
-                handleAppendedStmt(stmt, _PG, node);
-                break;
-            case IF:
-                handleIfstmt(stmt, _PG, node);
-                break;                      
-            }
-        }
-
-        return _PG;
-    }
-
-    private void handleAppendedStmt(List<NanoStmt> stmtNodes, ProgramGraph<String, String> programGraph, NanoStmt state) {
-        Pair<NanoStmt, NanoStmt> splitedStmt = state.breakStmt();
-        if (splitedStmt.first.getStmtKind() == NanoStmt.Kind.DONE) {
-        	if (this._debugFLAG)
-            {
-            	System.out.println("In appended STMT there is Done stmt" + splitedStmt.first.toString());
-            }
-        	
-            programGraph.addTransition(splitedStmt.first.getTrans());
-        } else {
-        	if (this._debugFLAG)
-            {
-            	System.out.println("In appended STMT there is trans stmt" + splitedStmt.first.toString());
-            }
-            stmtNodes.add(splitedStmt.first);
-        }
-
-        stmtNodes.add(splitedStmt.second);
-    }
-
-    private void handleIfstmt(List<NanoStmt> stmtNodes, ProgramGraph<String, String> programGraph, NanoStmt state) {
-
-        if (state._StmtMainNode == null || state._StmtMainNode.getStmtKind() != NanoStmt.Kind.IF) {
-        	if (this._debugFLAG)
-            {
-            	System.out.println("In handle IF STMT, adding new location" + state.toString());
-            }
-            programGraph.addLocation(state.getState());
-        }
-
-        for (int i = 0; i < state._rootNano.ifstmt().option().size(); i++) {
-            NanoPromelaParser.OptionContext option = state._rootNano.ifstmt().option(i);
-            String condition = "(" + option.boolexpr().getText() + ")";
-            NanoStmt optionStmt = new NanoStmt(option.stmt(), state._nextStmt, condition, state);
-            if (this._debugFLAG)
-            {
-            	System.out.println("In handle IF STMT, seding to handle STMT" + optionStmt.toString());
-            }
-            handleStmt(stmtNodes, programGraph, optionStmt);
-        }
-    }
-
-    private void handleDostmt(List<NanoStmt> stmtNodes, ProgramGraph<String, String> PG, NanoStmt nanoStmt) {
-      
-    	NanoStmt doneStmt = new NanoStmt(nanoStmt._rootNano, nanoStmt._nextStmt, "", nanoStmt, true);
-    	PG.addLocation(nanoStmt.getState());
-        
-        if (this._debugFLAG)
-        {
-        	System.out.println("handle DO STMT...");
-        }
-        
-        for (int i = 0; i < nanoStmt._rootNano.dostmt().option().size(); ++i) 
-        {
-            NanoPromelaParser.OptionContext optNano = nanoStmt._rootNano.dostmt().option(i);
-
-            String condStmt = "(" + optNano.boolexpr().getText() + ")";
-            NanoStmt optionStmt = new NanoStmt(optNano.stmt(), nanoStmt.getState(), condStmt, nanoStmt);
-            doneStmt.consCondStmt(condStmt);
-            if (this._debugFLAG)
-            {
-            	System.out.println("about to handle regular STMT now...");
-            }       
-            handleStmt(stmtNodes, PG, optionStmt);
-
-            NanoStmt agregOpt = optionStmt.clone();
-            agregOpt._StmtMainNode = nanoStmt.clone();
-            agregOpt._StmtMainNode._condStmt = "";
-            agregOpt._StmtMainNode._StmtMainNode = null;
-            handleStmt(stmtNodes, PG, agregOpt);
-            if (this._debugFLAG)
-            {
-            	System.out.println("handle STMT..." + agregOpt.toString());
-            }
-            
-        }
-
-        doneStmt._condStmt = "!(" + doneStmt._condStmt + ")";
-        PG.addTransition(doneStmt.getTrans());
-        if (this._debugFLAG)
-        {
-        	System.out.println("About addong new trans to PG" + doneStmt.getTrans().toString());
-        }
-        NanoStmt agregDoneStmt = doneStmt.clone();
-        agregDoneStmt._StmtMainNode = nanoStmt.clone();
-        agregDoneStmt._StmtMainNode._condStmt = "";
-        agregDoneStmt._StmtMainNode._StmtMainNode = null;
-        PG.addTransition(agregDoneStmt.getTrans());
-        if (this._debugFLAG)
-        {
-        	System.out.println("About addong new trans to PG" + agregDoneStmt.getTrans().toString());
-        }
-    }
-
-    private void handleStmt(List<NanoStmt> stmtList, ProgramGraph<String, String> PG, NanoStmt optionStmt) {
-        switch (optionStmt.getStmtKind()) {
-            case DONE:
-                PG.addTransition(optionStmt.getTrans());
-                break;
-
-            case IF:
-                stmtList.add(optionStmt);
-                break;
-
-            case DO:
-                stmtList.add(optionStmt);
-                break;
-
-            case STMTSTMT:
-                Pair<NanoStmt, NanoStmt> split = optionStmt.breakStmt();
-                if (split.first.getStmtKind() == NanoStmt.Kind.DONE) {
-                    PG.addTransition(split.first.getTrans());
-                } else {
-                    stmtList.add(split.first);
-                }
-
-                stmtList.add(split.second);
-                break;
-        }
-    }
+	/*no need for hw2*/
+	@Override
+	public <Sts, Saut, A, P> TransitionSystem<Pair<Sts, Saut>, A, Saut> product(TransitionSystem<Sts, A, P> ts, Automaton<Saut, P> aut) {
+		throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement product
+	}
+	/*no need for hw2*/
 
 
-    private static class NanoStmt {
+	@Override
+	public ProgramGraph<String, String> programGraphFromNanoPromela(String filename) throws Exception {
+		NanoPromelaParser.StmtContext root = NanoPromelaFileReader.pareseNanoPromelaFile(filename);
+		return checkKindStmtPG(root);
+	}
 
-        private NanoPromelaParser.StmtContext _rootNano;
-        private String _nextStmt;
-        private boolean _doneStmt;
-        private String _condStmt;
-        private NanoStmt _StmtMainNode;
-        private boolean debug = false;
-        
-        public NanoStmt(NanoPromelaParser.StmtContext begin, String nextStmt) {
-        	this._rootNano = begin;
-            this._nextStmt = nextStmt;
-            this._condStmt = "";
-            this._doneStmt = false;
+	@Override
+	public ProgramGraph<String, String> programGraphFromNanoPromelaString(String nanopromela) throws Exception {
+		NanoPromelaParser.StmtContext root = NanoPromelaFileReader.pareseNanoPromelaString(nanopromela);
+		return checkKindStmtPG(root);
+	}
 
-        }
-     
-        public NanoStmt(NanoPromelaParser.StmtContext begin, String nextStmt, String condStmt) {
-            this(begin, nextStmt);
-            this._condStmt = condStmt;
-        }
+	@Override
+	public ProgramGraph<String, String> programGraphFromNanoPromela(InputStream inputStream) throws Exception {
+		NanoPromelaParser.StmtContext root = NanoPromelaFileReader.parseNanoPromelaStream(inputStream);
+		return checkKindStmtPG(root);
+	}
 
-        public NanoStmt(NanoPromelaParser.StmtContext begin,String nextStmt,  String condStmt, NanoStmt mainNode) {
-            this(begin, nextStmt, condStmt);
-            this._StmtMainNode = mainNode;
-        }
-        
-        public NanoStmt(NanoPromelaParser.StmtContext begin, String nextStmt, String condStmt, NanoStmt mainNode, boolean exit) {
-            this(begin, nextStmt, condStmt, mainNode);
-            this._doneStmt = exit;
-        }
+	@Override
+	public <S, A, P, Saut> VerificationResult<S> verifyAnOmegaRegularProperty(TransitionSystem<S, A, P> ts, Automaton<Saut, P> aut) {
+		throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement verifyAnOmegaRegularProperty
+	}
 
-        public NanoStmt clone() {
-        	if (debug)
-        	{
-        		System.out.println("Im in clone ");
-        	}
-            return new NanoStmt(_rootNano, _nextStmt, _condStmt, _StmtMainNode, _doneStmt);
-        }
+	@Override
+	public <L> Automaton<?, L> LTL2NBA(LTL<L> ltl) {
+		throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement LTL2NBA
+	}
 
-        public String getState() {
-            return _rootNano.getText() + (_nextStmt.isEmpty() ? "" : ";") + _nextStmt;
-        }
-        
-        public String getCondStmt() {
-            String toRet = _condStmt;
-            if (debug)
-        	{
-        		System.out.println("Im in getCond");
-        	}
-            NanoStmt parent = this._StmtMainNode;
-            while (parent != null) {
-                if (!parent._condStmt.isEmpty()) {
-                	if (debug)
-                	{
-                		System.out.println("There is a parent");
-                	}
-                    toRet = parent._condStmt + " && (" + toRet + ")";
-                } else {
-                    break;
-                }
-                parent = parent._StmtMainNode;
-            }
-            return toRet;
-        }
-        
-        public void consCondStmt(String condition) {
-            if (this._condStmt.isEmpty()) {
-            	if (debug)
-            	{
-            		System.out.println("Nothing to cons, just this stmt ");
-            	}
-                this._condStmt = condition;
-            } else {
-            	if (debug)
-            	{
-            		System.out.println("Cons new stmt");
-            	}
-                this._condStmt = this._condStmt + "||" + condition;
-            }
-        }    
+	@Override
+	public <L> Automaton<?, L> GNBA2NBA(MultiColorAutomaton<?, L> mulAut) {
+		throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement GNBA2NBA
+	}
 
-        public PGTransition<String, String> getTrans() {
-            NanoStmt parent = this._StmtMainNode;
-            if (parent == null) 
-            {
-                if (_doneStmt) 
-                {
-                	if (debug)
-                	{
-                		System.out.println("it's EXIT trans, so about to DONE");
-                	}
-                   return new PGTransition(getState(),
-                            getCondStmt(),
-                            "",
-                            _nextStmt);
-                }else
-                {
-                    return new PGTransition(getState(),
-                            getCondStmt(),
-                            _rootNano.getText(),
-                            _nextStmt);
-                }
 
-            } else
-            {
-                while (parent._StmtMainNode != null)
-                {
-                	if (debug)
-                	{
-                		System.out.println("There is a parent");
-                	}
-                   if (parent.getStmtKind() == Kind.DONE) {
-                        break;
-                    } else {
-                        parent = parent._StmtMainNode;
+	private ProgramGraph<String, String> checkKindStmtPG(NanoPromelaParser.StmtContext root) {
 
-                    }
-                }
-                if (getStmtKind() == Kind.DONE) {
-                	if (debug)
-                	{
-                		System.out.println("There is a parent, and In DONE stmt");
-                	}
-                    return new PGTransition(parent.getState(),
-                            getCondStmt(),
-                            _rootNano.getText(),
-                            _nextStmt);
-                } else {
-                    return new PGTransition(parent.getState(),
-                            getCondStmt(),
-                            "",
-                            _nextStmt);
-                }
-            }
-        }
+		ProgramGraph<String, String> _PG = createProgramGraph();
+		NanoStmt rootNode = new NanoStmt(root, "");
+		// initial
+		_PG.addInitialLocation(rootNode.getState());
+		// DONE 
+		_PG.addLocation("");
 
-        public Kind getStmtKind() {
-            if (_rootNano.assstmt() != null || _rootNano.chanreadstmt() != null || _rootNano.chanwritestmt() != null || _rootNano.atomicstmt() != null || _rootNano.skipstmt() != null) {
-                return Kind.DONE;
-            } else if (_rootNano.ifstmt() != null) {
-                return Kind.IF;
-            } else if (_rootNano.dostmt() != null) {
-                return Kind.DO;
-            } else {
-                return Kind.STMTSTMT;
-            }
-        }
-        
-        public Pair<NanoStmt, NanoStmt> breakStmt() {
-            NanoStmt _sec = new NanoStmt(_rootNano.stmt(1), _nextStmt, "", null);
-            NanoStmt _fir = new NanoStmt(_rootNano.stmt(0), _sec.getState(), _condStmt, _StmtMainNode);
-            if (debug)
-        	{
-        		System.out.println("About to split stmt...");
-        	}
-            return p(_fir, _sec);
-        }     
+		List<NanoStmt> stmt = new ArrayList<>();
+		stmt.add(rootNode);
+		NanoStmt node;
+		for (int i = 0; i < stmt.size(); i++) {
+			node = stmt.get(i);
+			if (this._debugFLAG)
+			{
+				System.out.println("Checking Kind..." + node.toString());
+			}
+			switch (node.getStmtKind()) {
+			case DO:
+				handleDostmt(stmt, _PG, node);
+				break;
+			case DONE:
+				_PG.addLocation(node.getState());
+				_PG.addTransition(node.getTrans());
+				break;
+			case STMTSTMT:
+				handleAppendedStmt(stmt, _PG, node);
+				break;
+			case IF:
+				handleIfstmt(stmt, _PG, node);
+				break;                      
+			}
+		}
 
-        public void consNextStmt(String newStmt) {
-            if (_nextStmt.isEmpty()) {
-            	if (debug)
-            	{
-            		System.out.println("nothis to cons .");
-            	}
-                _nextStmt = newStmt;
-            } else {
-            	if (debug)
-            	{
-            		System.out.println("Cons next stmt");
-            	}
-                _nextStmt = newStmt + ";" + _nextStmt;
-            }
-        }
+		return _PG;
+	}
 
-        enum Kind {
-        	STMTSTMT, DONE, IF, DO
-        }
-    }
-   
+	private void handleAppendedStmt(List<NanoStmt> stmtNodes, ProgramGraph<String, String> programGraph, NanoStmt state) {
+		Pair<NanoStmt, NanoStmt> splitedStmt = state.breakStmt();
+		if (splitedStmt.first.getStmtKind() == NanoStmt.Kind.DONE) {
+			if (this._debugFLAG)
+			{
+				System.out.println("In appended STMT there is Done stmt" + splitedStmt.first.toString());
+			}
+
+			programGraph.addTransition(splitedStmt.first.getTrans());
+		} else {
+			if (this._debugFLAG)
+			{
+				System.out.println("In appended STMT there is trans stmt" + splitedStmt.first.toString());
+			}
+			stmtNodes.add(splitedStmt.first);
+		}
+
+		stmtNodes.add(splitedStmt.second);
+	}
+
+	private void handleIfstmt(List<NanoStmt> stmtNodes, ProgramGraph<String, String> programGraph, NanoStmt state) {
+
+		if (state._StmtMainNode == null || state._StmtMainNode.getStmtKind() != NanoStmt.Kind.IF) {
+			if (this._debugFLAG)
+			{
+				System.out.println("In handle IF STMT, adding new location" + state.toString());
+			}
+			programGraph.addLocation(state.getState());
+		}
+
+		for (int i = 0; i < state._rootNano.ifstmt().option().size(); i++) {
+			NanoPromelaParser.OptionContext option = state._rootNano.ifstmt().option(i);
+			String condition = "(" + option.boolexpr().getText() + ")";
+			NanoStmt optionStmt = new NanoStmt(option.stmt(), state._nextStmt, condition, state);
+			if (this._debugFLAG)
+			{
+				System.out.println("In handle IF STMT, seding to handle STMT" + optionStmt.toString());
+			}
+			handleStmt(stmtNodes, programGraph, optionStmt);
+		}
+	}
+
+	private void handleDostmt(List<NanoStmt> stmtNodes, ProgramGraph<String, String> PG, NanoStmt nanoStmt) {
+
+		NanoStmt doneStmt = new NanoStmt(nanoStmt._rootNano, nanoStmt._nextStmt, "", nanoStmt, true);
+		PG.addLocation(nanoStmt.getState());
+
+		if (this._debugFLAG)
+		{
+			System.out.println("handle DO STMT...");
+		}
+
+		for (int i = 0; i < nanoStmt._rootNano.dostmt().option().size(); ++i) 
+		{
+			NanoPromelaParser.OptionContext optNano = nanoStmt._rootNano.dostmt().option(i);
+
+			String condStmt = "(" + optNano.boolexpr().getText() + ")";
+			NanoStmt optionStmt = new NanoStmt(optNano.stmt(), nanoStmt.getState(), condStmt, nanoStmt);
+			doneStmt.consCondStmt(condStmt);
+			if (this._debugFLAG)
+			{
+				System.out.println("about to handle regular STMT now...");
+			}       
+			handleStmt(stmtNodes, PG, optionStmt);
+
+			NanoStmt agregOpt = optionStmt.clone();
+			agregOpt._StmtMainNode = nanoStmt.clone();
+			agregOpt._StmtMainNode._condStmt = "";
+			agregOpt._StmtMainNode._StmtMainNode = null;
+			handleStmt(stmtNodes, PG, agregOpt);
+			if (this._debugFLAG)
+			{
+				System.out.println("handle STMT..." + agregOpt.toString());
+			}
+
+		}
+
+		doneStmt._condStmt = "!(" + doneStmt._condStmt + ")";
+		PG.addTransition(doneStmt.getTrans());
+		if (this._debugFLAG)
+		{
+			System.out.println("About addong new trans to PG" + doneStmt.getTrans().toString());
+		}
+		NanoStmt agregDoneStmt = doneStmt.clone();
+		agregDoneStmt._StmtMainNode = nanoStmt.clone();
+		agregDoneStmt._StmtMainNode._condStmt = "";
+		agregDoneStmt._StmtMainNode._StmtMainNode = null;
+		PG.addTransition(agregDoneStmt.getTrans());
+		if (this._debugFLAG)
+		{
+			System.out.println("About addong new trans to PG" + agregDoneStmt.getTrans().toString());
+		}
+	}
+
+	private void handleStmt(List<NanoStmt> stmtList, ProgramGraph<String, String> PG, NanoStmt optionStmt) {
+		switch (optionStmt.getStmtKind()) {
+		case DONE:
+			PG.addTransition(optionStmt.getTrans());
+			break;
+
+		case IF:
+			stmtList.add(optionStmt);
+			break;
+
+		case DO:
+			stmtList.add(optionStmt);
+			break;
+
+		case STMTSTMT:
+			Pair<NanoStmt, NanoStmt> split = optionStmt.breakStmt();
+			if (split.first.getStmtKind() == NanoStmt.Kind.DONE) {
+				PG.addTransition(split.first.getTrans());
+			} else {
+				stmtList.add(split.first);
+			}
+
+			stmtList.add(split.second);
+			break;
+		}
+	}
+
+
+	private static class NanoStmt {
+
+		private NanoPromelaParser.StmtContext _rootNano;
+		private String _nextStmt;
+		private boolean _doneStmt;
+		private String _condStmt;
+		private NanoStmt _StmtMainNode;
+		private boolean debug = false;
+
+		public NanoStmt(NanoPromelaParser.StmtContext begin, String nextStmt) {
+			this._rootNano = begin;
+			this._nextStmt = nextStmt;
+			this._condStmt = "";
+			this._doneStmt = false;
+
+		}
+
+		public NanoStmt(NanoPromelaParser.StmtContext begin, String nextStmt, String condStmt) {
+			this(begin, nextStmt);
+			this._condStmt = condStmt;
+		}
+
+		public NanoStmt(NanoPromelaParser.StmtContext begin,String nextStmt,  String condStmt, NanoStmt mainNode) {
+			this(begin, nextStmt, condStmt);
+			this._StmtMainNode = mainNode;
+		}
+
+		public NanoStmt(NanoPromelaParser.StmtContext begin, String nextStmt, String condStmt, NanoStmt mainNode, boolean exit) {
+			this(begin, nextStmt, condStmt, mainNode);
+			this._doneStmt = exit;
+		}
+
+		public NanoStmt clone() {
+			if (debug)
+			{
+				System.out.println("Im in clone ");
+			}
+			return new NanoStmt(_rootNano, _nextStmt, _condStmt, _StmtMainNode, _doneStmt);
+		}
+
+		public String getState() {
+			return _rootNano.getText() + (_nextStmt.isEmpty() ? "" : ";") + _nextStmt;
+		}
+
+		public String getCondStmt() {
+			String toRet = _condStmt;
+			if (debug)
+			{
+				System.out.println("Im in getCond");
+			}
+			NanoStmt parent = this._StmtMainNode;
+			while (parent != null) {
+				if (!parent._condStmt.isEmpty()) {
+					if (debug)
+					{
+						System.out.println("There is a parent");
+					}
+					toRet = parent._condStmt + " && (" + toRet + ")";
+				} else {
+					break;
+				}
+				parent = parent._StmtMainNode;
+			}
+			return toRet;
+		}
+
+		public void consCondStmt(String condition) {
+			if (this._condStmt.isEmpty()) {
+				if (debug)
+				{
+					System.out.println("Nothing to cons, just this stmt ");
+				}
+				this._condStmt = condition;
+			} else {
+				if (debug)
+				{
+					System.out.println("Cons new stmt");
+				}
+				this._condStmt = this._condStmt + "||" + condition;
+			}
+		}    
+
+		public PGTransition<String, String> getTrans() {
+			NanoStmt parent = this._StmtMainNode;
+			if (parent == null) 
+			{
+				if (_doneStmt) 
+				{
+					if (debug)
+					{
+						System.out.println("it's EXIT trans, so about to DONE");
+					}
+					return new PGTransition(getState(),
+							getCondStmt(),
+							"",
+							_nextStmt);
+				}else
+				{
+					return new PGTransition(getState(),
+							getCondStmt(),
+							_rootNano.getText(),
+							_nextStmt);
+				}
+
+			} else
+			{
+				while (parent._StmtMainNode != null)
+				{
+					if (debug)
+					{
+						System.out.println("There is a parent");
+					}
+					if (parent.getStmtKind() == Kind.DONE) {
+						break;
+					} else {
+						parent = parent._StmtMainNode;
+
+					}
+				}
+				if (getStmtKind() == Kind.DONE) {
+					if (debug)
+					{
+						System.out.println("There is a parent, and In DONE stmt");
+					}
+					return new PGTransition(parent.getState(),
+							getCondStmt(),
+							_rootNano.getText(),
+							_nextStmt);
+				} else {
+					return new PGTransition(parent.getState(),
+							getCondStmt(),
+							"",
+							_nextStmt);
+				}
+			}
+		}
+
+		public Kind getStmtKind() {
+			if (_rootNano.assstmt() != null || _rootNano.chanreadstmt() != null || _rootNano.chanwritestmt() != null || _rootNano.atomicstmt() != null || _rootNano.skipstmt() != null) {
+				return Kind.DONE;
+			} else if (_rootNano.ifstmt() != null) {
+				return Kind.IF;
+			} else if (_rootNano.dostmt() != null) {
+				return Kind.DO;
+			} else {
+				return Kind.STMTSTMT;
+			}
+		}
+
+		public Pair<NanoStmt, NanoStmt> breakStmt() {
+			NanoStmt _sec = new NanoStmt(_rootNano.stmt(1), _nextStmt, "", null);
+			NanoStmt _fir = new NanoStmt(_rootNano.stmt(0), _sec.getState(), _condStmt, _StmtMainNode);
+			if (debug)
+			{
+				System.out.println("About to split stmt...");
+			}
+			return p(_fir, _sec);
+		}     
+
+		public void consNextStmt(String newStmt) {
+			if (_nextStmt.isEmpty()) {
+				if (debug)
+				{
+					System.out.println("nothis to cons .");
+				}
+				_nextStmt = newStmt;
+			} else {
+				if (debug)
+				{
+					System.out.println("Cons next stmt");
+				}
+				_nextStmt = newStmt + ";" + _nextStmt;
+			}
+		}
+
+		enum Kind {
+			STMTSTMT, DONE, IF, DO
+		}
+	}
+
 }
