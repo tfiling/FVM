@@ -550,11 +550,11 @@ public class FvmFacadeImpl implements FvmFacade {
 			Pair<Map<String, Boolean>, Map<String, Boolean>> initialState = new Pair<>(possibleInput, registerInitialValues);
 			allInitialStates.add(initialState);
 		}
-		
+
 		for (Pair<Map<String, Boolean>, Map<String, Boolean>> initialState : allInitialStates) {
 			generateTransitionSystem(c, resultedTransitionSystem, initialState);			
 		}
-		
+
 		for (int i = 0; i < allInitialStates.size(); i++) {
 			resultedTransitionSystem.addInitialState(allInitialStates.get(i));
 		}
@@ -616,13 +616,13 @@ public class FvmFacadeImpl implements FvmFacade {
 
 
 	private void generateTransitionSystem(Circuit c, TransitionSystem<Pair<Map<String, Boolean>, Map<String, Boolean>>, Map<String, Boolean>, Object> transitionSystem, Pair<Map<String, Boolean>, Map<String, Boolean>> currentState) {
-		
+
 		if (transitionSystem.getStates().contains(currentState)) {
 			return;
 		}
 
 		transitionSystem.addState(currentState);
-		
+
 		for(String registerName : currentState.second.keySet())
 		{
 			if (currentState.second.get(registerName))
@@ -665,89 +665,90 @@ public class FvmFacadeImpl implements FvmFacade {
 	}
 
 	@Override
-	public <L, A> TransitionSystem<Pair<L, Map<String, Object>>, A, String> transitionSystemFromProgramGraph(ProgramGraph<L, A> pg, Set<ActionDef> actionDefs, Set<ConditionDef> conditionDefs) {
-		List<ConditionDef> c = new ArrayList<>(conditionDefs);
-		TransitionSystem transitionSystem = createTransitionSystem();
+	public <L, A> TransitionSystem<Pair<L, Map<String, Object>>, A, String> transitionSystemFromProgramGraph(
+			ProgramGraph<L, A> pg, 
+			Set<ActionDef> actionDefs, 
+			Set<ConditionDef> conditionDefs) {
+		TransitionSystem resultedTransitionSystem = createTransitionSystem();
+		L[] locations = (L[])pg.getInitialLocations().toArray();
+		List<List<String>> initilizations = new ArrayList<>(pg.getInitalizations());
 
 		// Initialize states
-		for (L l : pg.getInitialLocations()) {
-			if (pg.getInitalizations().size() > 0) {
-				for (List<String> initialization : pg.getInitalizations()) {
-					Map<String, Object> eval = new HashMap<>();
-					for (String action : initialization) {
-						for (ActionDef actionDef : actionDefs) {
-							if (actionDef.isMatchingAction(action)) {
-								eval = actionDef.effect(eval, action);
-							}
+		for (int i = 0; i < locations.length; i++) {
+			Map<String, Object> eval = new HashMap<>();
+			for (int j = 0; j < initilizations.size(); j++) {
+				for (String action : initilizations.get(j)) {
+					for (ActionDef actionDef : actionDefs) {
+						if (actionDef.isMatchingAction(action)) {
+							eval = actionDef.effect(eval, action);
 						}
 					}
-					Pair state = p(l, eval);
-					transitionSystem.addState(state);
-					transitionSystem.addInitialState(state);
-
-
-
-					// Add AP and L
-					for (Map.Entry atomic : eval.entrySet()) {
-						transitionSystem.addAtomicProposition(atomic.getKey() + " = " + atomic.getValue());
-						transitionSystem.addToLabel(state, atomic.getKey() + " = " + atomic.getValue());
-					}
-
-					transitionSystem.addAtomicProposition(l.toString());
-					transitionSystem.addToLabel(state, l.toString());
-
 				}
-			} else {
-				Pair state = p(l, new HashMap<>());
-				transitionSystem.addState(state);
-				transitionSystem.addInitialState(state);
+				Pair newInitialState = p(locations[i], eval);
+				addStateToTransitionSystem(resultedTransitionSystem, locations[i], eval, newInitialState);
+				resultedTransitionSystem.addInitialState(newInitialState);
 
-				transitionSystem.addAtomicProposition(l.toString());
-				transitionSystem.addToLabel(state, l.toString());
+			}
+
+			if (initilizations.size() == 0) {
+				Pair state = p(locations[i], new HashMap<>());
+				addStateToTransitionSystem(resultedTransitionSystem, locations[i], eval, state);
+				resultedTransitionSystem.addInitialState(state);
 			}
 		}
 
-
-		// Add all states
-		List<Pair<String, Map<String, Object>>> states = new ArrayList<>(transitionSystem.getInitialStates());
-		for (int i = 0; i < states.size(); i++) {
-			Pair<String, Map<String, Object>> state = states.get(i);
-			for (PGTransition pgTransition : pg.getTransitions()) {
-				if (pgTransition.getFrom().equals(state.first)) {
-					for (ConditionDef conditionDef : conditionDefs) {
-						if (conditionDef.evaluate(state.second, pgTransition.getCondition())) {
+		List<Pair<String, Map<String, Object>>> accumulatedStates = new ArrayList<>(resultedTransitionSystem.getInitialStates());
+		for (int i = 0; i < accumulatedStates.size(); i++) {
+			Pair<String, Map<String, Object>> state = accumulatedStates.get(i);
+			for (PGTransition transition : pg.getTransitions()) {
+				if (transition.getFrom().equals(state.first)) {
+					for (ConditionDef conditionDef : conditionDefs) 
+					evaluatorItration: {
+						if (conditionDef.evaluate(state.second, transition.getCondition())) {
 							Map<String, Object> eval = state.second;
 							for (ActionDef actionDef : actionDefs) {
-								if (actionDef.isMatchingAction(pgTransition.getAction())) {
-									eval = actionDef.effect(eval, pgTransition.getAction());
+								if (actionDef.isMatchingAction(transition.getAction())) {
+									eval = actionDef.effect(eval, transition.getAction());
 								}
 							}
-							Pair toState = p(pgTransition.getTo(), eval);
-							if (!states.contains(toState)) {
-								states.add(toState);
-								transitionSystem.addState(toState);
-
-
-
-								// Add AP and L
-								for (Map.Entry atomic : eval.entrySet()) {
-									transitionSystem.addAtomicProposition(atomic.getKey() + " = " + atomic.getValue());
-									transitionSystem.addToLabel(toState, atomic.getKey() + " = " + atomic.getValue());
-								}
-
-								transitionSystem.addAtomicProposition(pgTransition.getTo().toString());
-								transitionSystem.addToLabel(toState, pgTransition.getTo().toString());
-
+							Pair destState = p(transition.getTo(), eval);
+							if (!accumulatedStates.contains(destState)) {
+								accumulatedStates.add(destState);
+								addStateToTransitionSystem(resultedTransitionSystem, transition.getTo(), eval, destState);
 							}
-							transitionSystem.addAction(pgTransition.getAction());
-							transitionSystem.addTransition(new Transition(state, pgTransition.getAction(), toState));
-							break;
+							resultedTransitionSystem.addAction(transition.getAction());
+							resultedTransitionSystem.addTransition(new Transition(state, transition.getAction(), destState));
+							break evaluatorItration;
 						}
 					}
 				}
 			}
 		}
-		return transitionSystem;
+		return resultedTransitionSystem;
+	}
+
+	private <L> void addStateToTransitionSystem(
+			TransitionSystem resultedTransitionSystem, 
+			L location,
+			Map<String, Object> eval, Pair state) {
+		resultedTransitionSystem.addState(state);
+
+		// Add AP and L
+		for (Map.Entry atomic : eval.entrySet()) {
+			resultedTransitionSystem.addAtomicProposition(atomic.getKey() + " = " + atomic.getValue());
+			resultedTransitionSystem.addToLabel(state, atomic.getKey() + " = " + atomic.getValue());
+		}
+
+		resultedTransitionSystem.addAtomicProposition(location.toString());
+		resultedTransitionSystem.addToLabel(state, location.toString());
+	}
+	
+	private <L> void addStateToTransitionSystem(
+			TransitionSystem resultedTransitionSystem, 
+			List<L> locations,
+			Map<String, Object> eval, Pair state) {
+		for (L location : locations)
+			addStateToTransitionSystem(resultedTransitionSystem, location, eval, state);
 	}
 
 
@@ -785,43 +786,23 @@ public class FvmFacadeImpl implements FvmFacade {
 		List<List<String>> initialEvals = extractInitialEvals(new ArrayList<>(), cs.getProgramGraphs());
 
 		for (List<L> l : initialLocations) {
+			Map<String, Object> eval = new HashMap<>();
 			if (initialLocations.size() > 0) {
 				for (List<String> initialization : initialEvals) {
-					Map<String, Object> eval = new HashMap<>();
 					for (String action : initialization) {
 						if (parserBasedActDef.isMatchingAction(action)) {
 							eval = parserBasedActDef.effect(eval, action);
 						}
 					}
 					Pair state = p(l, eval);
-					transitionSystem.addState(state);
+					addStateToTransitionSystem(transitionSystem, l, eval, state);
 					transitionSystem.addInitialState(state);
-
-
-
-					// Add AP and L
-					for (Map.Entry atomic : eval.entrySet()) {
-						transitionSystem.addAtomicProposition(atomic.getKey() + " = " + atomic.getValue());
-						transitionSystem.addToLabel(state, atomic.getKey() + " = " + atomic.getValue());
-					}
-
-					for (L loc : l)
-					{
-						transitionSystem.addAtomicProposition(loc.toString());
-						transitionSystem.addToLabel(state, loc.toString());					
-					}
 
 				}
 			} else {
-				Pair state = p(l, new HashMap<>());
-				transitionSystem.addState(state);
+				Pair state = p(l, eval);
+				addStateToTransitionSystem(transitionSystem, l, eval, state);
 				transitionSystem.addInitialState(state);
-
-				for (L loc : l)
-				{
-					transitionSystem.addAtomicProposition(loc.toString());
-					transitionSystem.addToLabel(state, loc.toString());					
-				}
 			}
 		}
 
@@ -994,6 +975,7 @@ public class FvmFacadeImpl implements FvmFacade {
 
 		return result;
 	}
+	
 
 
 	/*no need for hw2*/
