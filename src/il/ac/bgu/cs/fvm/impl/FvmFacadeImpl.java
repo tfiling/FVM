@@ -798,58 +798,54 @@ public class FvmFacadeImpl implements FvmFacade {
 								continue;
 							}
 						}
+						List<L> currentLocation = new ArrayList<L>(currentState.first);
+						currentLocation.set(i, transition.getTo());
 
-						List<L> location = new ArrayList<L>(currentState.first);
-						location.set(i, transition.getTo());
-
-						Pair<List<L>, Map<String, Object>> newState = p(location, eval);
-
-						addStateToTransitionSystem(resultedTransitionSystem, location, eval, newState);
-						resultedTransitionSystem.addAction(transition.getAction());
-						resultedTransitionSystem.addTransition(new Transition<Pair<List<L>, Map<String, Object>>, A>(currentState, transition.getAction(), newState));
-
-						if (!accumulatedStates.contains(newState)) {
-							accumulatedStates.add(newState);
-						}
+						applyNewState(resultedTransitionSystem, 
+								currentState, 
+								currentLocation,
+								transition.getAction(), 
+								accumulatedStates, 
+								eval);
 					}
 				}
 			}
 
-			for (int i = 0; i < possibleTransitions.size(); i++) {
-				List<PGTransition<L, A>> firstPossibleTransitions = possibleTransitions.get(i);
-				for (int j = i + 1; j < possibleTransitions.size(); j++) {
-					List<PGTransition<L, A>> secondPossibleTransitions = possibleTransitions.get(j);
-					for (int t = 0; t < possibleTransitions.get(i).size(); t++) {
-						for (int t2 = 0; t2 < possibleTransitions.get(j).size(); t2++) {
-							String action = firstPossibleTransitions.get(t).getAction() + "|" + secondPossibleTransitions.get(t2).getAction();
+			// iterate all possible transition combinations and find the combinations of actions that should happen in the same time 
+			int i = 0, j;
+			Iterator<List<PGTransition<L, A>>> it1 = possibleTransitions.listIterator();
+			while (it1.hasNext()) {
+				List<PGTransition<L, A>> firstPossibleTransitions = it1.next();
+				j = i + 1;
+				Iterator<List<PGTransition<L, A>>> it2 = possibleTransitions.listIterator(j);
+				while (it2.hasNext()) {
+					List<PGTransition<L, A>> secondPossibleTransitions = it2.next();
+					for (PGTransition<L, A> firstTransition : firstPossibleTransitions) {
+						for (PGTransition<L, A> secondTransition : secondPossibleTransitions) {
+							String action = firstTransition.getAction() + "|" + secondTransition.getAction();
 							Map<String, Object> eval = currentState.second;
 							if (interleavingActionDefinition.isMatchingAction(action)) {
 								eval = interleavingActionDefinition.effect(eval, action);
 
 								if (eval != null) {
-									List<L> location = new ArrayList<L>(currentState.first);
-									location.set(i, firstPossibleTransitions.get(t).getTo());
-									location.set(j, secondPossibleTransitions.get(t2).getTo());
+									List<L> currentLocation = new ArrayList<L>(currentState.first);
+									currentLocation.set(i, firstTransition.getTo());
+									currentLocation.set(j, secondTransition.getTo());
 
-									Pair<List<L>, Map<String, Object>> newState = p(location, eval);
-
-									addStateToTransitionSystem(resultedTransitionSystem, location, eval, newState);
-									resultedTransitionSystem.addAction((A) action);
-									resultedTransitionSystem.addTransition(new Transition<Pair<List<L>, Map<String, Object>>, A>(currentState, (A) action, newState));
-
-									if (!accumulatedStates.contains(newState)) {
-										accumulatedStates.add(newState);
-									}
+									applyNewState(resultedTransitionSystem, 
+											currentState, 
+											currentLocation, 
+											(A)action, 
+											accumulatedStates, 
+											eval);
 								}
 							}
 						}
 					}
 				}
+				i++;
 			}
-
 		}
-
-
 		return resultedTransitionSystem;
 	}
 
@@ -928,7 +924,26 @@ public class FvmFacadeImpl implements FvmFacade {
 		return result;
 	}
 
+	
+	private <L, A>void applyNewState(
+			TransitionSystem<Pair<List<L>, Map<String, Object>>, A, String> resultedTransitionSystem, 
+			Pair<List<L>, Map<String, Object>> currentState,
+			List<L> currentLocation,
+			A action,
+			List<Pair<List<L>, Map<String, Object>>> accumulatedStates,
+			Map<String, Object> eval) {
 
+		Pair<List<L>, Map<String, Object>> newState = p(currentLocation, eval);
+
+		addStateToTransitionSystem(resultedTransitionSystem, currentLocation, eval, newState);
+		resultedTransitionSystem.addAction(action);
+		resultedTransitionSystem.addTransition(new Transition<Pair<List<L>, Map<String, Object>>, A>(currentState, action, newState));
+
+		if (!accumulatedStates.contains(newState)) {
+			accumulatedStates.add(newState);
+		}
+	}
+	
 
 	/*no need for hw2*/
 	@Override
