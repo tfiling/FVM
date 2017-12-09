@@ -527,171 +527,139 @@ public class FvmFacadeImpl implements FvmFacade {
 			resultedTransitionSystem.addAtomicProposition(outputPortName);
 		}
 
+		String[] inputNames = new String[c.getInputPortNames().size()]; 
+		c.getInputPortNames().toArray(inputNames);
 		//Apply all the possible combinations upon the inputs
-		Set<Map<String, Boolean>> fullTruthTable = fullTruthTable(c.getInputPortNames());
+		List<Map<String, Boolean>> allPossibleInputs = generateAllPossibleCombinations(inputNames);
 
 		//Actions
-		for (Map<String, Boolean> action : fullTruthTable) {
-			resultedTransitionSystem.addAction(action);
+		for (Map<String, Boolean> possibleInput : allPossibleInputs) {
+			resultedTransitionSystem.addAction(possibleInput);
 		}
 
 
+		Map<String, Boolean> possibleInput;
+		List<Pair<Map<String, Boolean>, Map<String, Boolean>>> allInitialStates = new ArrayList<>(); 
 		//Initial state and states, transitions and labeling
-		for (Map<String, Boolean> inputInitialValues : fullTruthTable) {
+		for (int i = 0; i < allPossibleInputs.size(); i++) {
+			possibleInput = allPossibleInputs.get(i);
 			Map<String, Boolean> registerInitialValues = new HashMap<String,Boolean>();
 			for(String regName : c.getRegisterNames()) {
 				registerInitialValues.put(regName, new Boolean(false));
 			}
-
-			Pair<Map<String, Boolean>, Map<String, Boolean>> initialState = new Pair<>(inputInitialValues, registerInitialValues);
-			walkThroughtCircut(c, resultedTransitionSystem, true, initialState);
+			Pair<Map<String, Boolean>, Map<String, Boolean>> initialState = new Pair<>(possibleInput, registerInitialValues);
+			allInitialStates.add(initialState);
+		}
+		
+		for (Pair<Map<String, Boolean>, Map<String, Boolean>> initialState : allInitialStates) {
+			generateTransitionSystem(c, resultedTransitionSystem, initialState);			
+		}
+		
+		for (int i = 0; i < allInitialStates.size(); i++) {
+			resultedTransitionSystem.addInitialState(allInitialStates.get(i));
 		}
 
 		return resultedTransitionSystem;
 	}
 
-	private Set<Map<String, Boolean>> fullTruthTable (Set<String> inputs) {
+	private List<Map<String, Boolean>> generateAllPossibleCombinations (String[] inputs) {
 
-		int listsSize = powerOf2(inputs.size());
-		Map<String, Boolean>[] lists = new HashMap[listsSize];
-		List<Boolean>[] listsJustBool = new List[listsSize];
-		ArrayList <String> inputNames = new ArrayList<String>();   	
-		for (String aix: inputs)
-		{
-			inputNames.add(aix);
-		}
-		fillListWithTruthTable(listsJustBool);
+		List<Map<String, Boolean>> results = new LinkedList<Map<String,Boolean>>();
+		int resultSize = (int)Math.pow(2, inputs.length);
+		List<Boolean>[] possibleBooleanCombinations = new List[resultSize];
+		fillListPossibleCombinations(possibleBooleanCombinations);
 
-		for(int i = 0; i<listsSize; ++i)
-		{
-			lists[i] = new HashMap<String, Boolean>();
-		}
-		for(int i = 0; i<listsSize; ++i)
+		for(int i = 0; i<resultSize; ++i)
 		{//iterate the lists of possible configurations
-			for (int j = 0; j < inputNames.size(); ++j)
+			results.add(new HashMap<String, Boolean>());
+			for (int j = 0; j < inputs.length; ++j)
 			{//iterate the names of inputs
-				lists[i].put(inputNames.get(j), listsJustBool[i].get(j));
+				results.get(i).put(inputs[j], possibleBooleanCombinations[i].get(j));
 			}
 		}  	
 
-		Set<Map<String, Boolean>> listsSet = new HashSet<>();
-		for (int i = 0; i < lists.length; i++) {
-			listsSet.add(lists[i]);
-		}
-
-		return listsSet;
+		return results;
 	}
 
-	private int powerOf2 (int numberOfVars) {
-		int power = 1;
-		for (int i = 0; i < numberOfVars; i++) {
-			power *= 2;
-		}
-		return power;
-	}
-
-	private void fillListWithTruthTable (List<Boolean>[] lists) {
-		if (lists.length == 2) {
-			if (lists[0] == null) {
-				lists[0] = new LinkedList<Boolean>();
+	private void fillListPossibleCombinations (List<Boolean>[] possibleBooleanCombinations) {
+		if (possibleBooleanCombinations.length == 2) {
+			if (possibleBooleanCombinations[0] == null) {
+				possibleBooleanCombinations[0] = new LinkedList<Boolean>();
 			}
-			lists[0].add(new Boolean(true));
-			if (lists[1] == null) {
-				lists[1] = new LinkedList<Boolean>();
+			if (possibleBooleanCombinations[1] == null) {
+				possibleBooleanCombinations[1] = new LinkedList<Boolean>();
 			}
-			lists[1].add(new Boolean(false));
+			possibleBooleanCombinations[0].add(new Boolean(true));
+			possibleBooleanCombinations[1].add(new Boolean(false));
 			return;
 		}
 
-		List<Boolean>[] firstHalf = new List[lists.length / 2];
-		List<Boolean>[] secondHalf = new List[lists.length / 2];
+		List<Boolean>[] firstHalf = new List[possibleBooleanCombinations.length / 2];
+		List<Boolean>[] secondHalf = new List[possibleBooleanCombinations.length / 2];
 
-		for (int i = 0; i < lists.length; i++) {
-			if (lists[i] == null) {
-				lists[i] = new LinkedList<Boolean>();
+		for (int i = 0; i < possibleBooleanCombinations.length; i++) {
+			if (possibleBooleanCombinations[i] == null) {
+				possibleBooleanCombinations[i] = new LinkedList<Boolean>();
 			}
-			if (i < lists.length / 2) {
-				lists[i].add(new Boolean(true));
-				firstHalf[i] = lists[i];
+			if (i < possibleBooleanCombinations.length / 2) {
+				possibleBooleanCombinations[i].add(new Boolean(true));
+				firstHalf[i] = possibleBooleanCombinations[i];
 			} else {
-				lists[i].add(new Boolean(false));
-				secondHalf[i - lists.length / 2] = lists[i];
+				possibleBooleanCombinations[i].add(new Boolean(false));
+				secondHalf[i - possibleBooleanCombinations.length / 2] = possibleBooleanCombinations[i];
 			}
 		}
 
-		fillListWithTruthTable(firstHalf);
-		fillListWithTruthTable(secondHalf);
+		fillListPossibleCombinations(firstHalf);
+		fillListPossibleCombinations(secondHalf);
 	}
 
 
-	private void walkThroughtCircut(Circuit c, TransitionSystem<Pair<Map<String, Boolean>, Map<String, Boolean>>, Map<String, Boolean>, Object> transitionSystem, boolean isInitial, Pair<Map<String, Boolean>, Map<String, Boolean>> initialState) {
-		boolean transitionSystemContainedState = transitionSystem.getStates().contains(initialState);
-
-		//States
-		transitionSystem.addState(initialState);
-		if (isInitial) {
-			transitionSystem.addInitialState(initialState);
-		}
-
-		if (transitionSystemContainedState) {
+	private void generateTransitionSystem(Circuit c, TransitionSystem<Pair<Map<String, Boolean>, Map<String, Boolean>>, Map<String, Boolean>, Object> transitionSystem, Pair<Map<String, Boolean>, Map<String, Boolean>> currentState) {
+		
+		if (transitionSystem.getStates().contains(currentState)) {
 			return;
 		}
 
-		//Labeling
-		Map<String, Boolean> currentStateRegisters = initialState.second;
-		Set<String> currentStateRegistersNames = currentStateRegisters.keySet();
-		Object[] RegNames = currentStateRegistersNames.toArray();
-		int j=0;
-		for(Boolean curr: currentStateRegisters.values())
+		transitionSystem.addState(currentState);
+		
+		for(String registerName : currentState.second.keySet())
 		{
-			if (curr)
+			if (currentState.second.get(registerName))
 			{
-				transitionSystem.addToLabel(initialState, RegNames[j]); ;
-
+				transitionSystem.addToLabel(currentState, registerName); ;
 			}
-			++j;
 		}
 
-		Map<String, Boolean>  currentStateInput = initialState.first;
-		Set<String> currentStateInputNames = currentStateInput.keySet();
-		Object[] InNames = currentStateInputNames.toArray();
-		j=0;
-		for(Boolean currIn: currentStateInput.values())
+		for(String InputName : currentState.first.keySet())
 		{
-			if (currIn)
+			if (currentState.first.get(InputName))
 			{
-				transitionSystem.addToLabel(initialState, InNames[j]);
-
+				transitionSystem.addToLabel(currentState, InputName); ;
 			}
-			++j;
 		}
 
-		Map<String, Boolean>  currentStateOutput = c.computeOutputs(currentStateInput, currentStateRegisters);
-		Set<String> currentStateOutputNames = currentStateOutput.keySet();
-		Object[] OutNames = currentStateOutputNames.toArray();
-		j=0;
-		for(Boolean currOut: currentStateOutput.values())
+		Map<String, Boolean>  out = c.computeOutputs(currentState.first, currentState.second);
+		for(String outName: out.keySet())
 		{
-			if (currOut)
+			if (out.get(outName))
 			{
-				transitionSystem.addToLabel(initialState, OutNames[j]);
-
+				transitionSystem.addToLabel(currentState, outName);
 			}
-			++j;
 		}
 
+		String[] inputNames = new String[c.getInputPortNames().size()]; 
+		c.getInputPortNames().toArray(inputNames);
 
+		List<Map<String, Boolean>> allPossibleInputs = generateAllPossibleCombinations(inputNames);
+		for (Map<String, Boolean>  possibleInput : allPossibleInputs) {
+			Map<String, Boolean>  resultedRegisters = c.updateRegisters(currentState.first, currentState.second);
 
-		//Go recursive
-		Set<Map<String, Boolean>> fullTruthTableForInputs = fullTruthTable(c.getInputPortNames());
-		for (Map<String, Boolean>  inputValue : fullTruthTableForInputs) {
-			Map<String, Boolean>  updatedRegisters = c.updateRegisters(initialState.first, initialState.second);
-
-			Pair<Map<String, Boolean> , Map<String, Boolean>> nextState = new Pair<>(inputValue, updatedRegisters);
-			walkThroughtCircut(c, transitionSystem, false, nextState);
+			Pair<Map<String, Boolean> , Map<String, Boolean>> newState = new Pair<>(possibleInput, resultedRegisters);
+			generateTransitionSystem(c, transitionSystem, newState);
 
 			//Transitions
-			Transition<Pair<Map<String, Boolean>, Map<String, Boolean>>, Map<String, Boolean>> transition = new Transition<Pair<Map<String, Boolean>, Map<String, Boolean>>, Map<String, Boolean>>(initialState, inputValue, nextState);
+			Transition<Pair<Map<String, Boolean>, Map<String, Boolean>>, Map<String, Boolean>> transition = new Transition<Pair<Map<String, Boolean>, Map<String, Boolean>>, Map<String, Boolean>>(currentState, possibleInput, newState);
 			transitionSystem.addTransition(transition);
 		}
 	}
