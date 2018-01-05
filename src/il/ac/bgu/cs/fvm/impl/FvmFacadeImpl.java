@@ -1367,6 +1367,35 @@ public class FvmFacadeImpl implements FvmFacade {
 		}
 	}
 
+	// will add the state for future transition examinations if was not processed yet
+	private <Sts, Saut, A> Pair<Sts,Saut> getNextState(TransitionSystem<Pair<Sts, Saut>, A, Saut> res, Saut destAut, Sts destTs, LinkedList<Pair<Sts,Saut>> states)
+	{
+		Iterator<Pair<Sts,Saut>> existingStatesIt = res.getStates().iterator();
+		while (existingStatesIt.hasNext())
+		{
+			Pair<Sts, Saut> examinedState = existingStatesIt.next();
+			if(examinedState.getFirst().equals(destTs) &&
+					examinedState.getSecond().equals(destAut))
+			{
+				return examinedState;
+			}
+		}
+		// the required state was not yet added to the product result states list, add it
+		Pair<Sts,Saut> newlyCreatedState = new Pair<>(destTs,destAut);
+		res.addState(newlyCreatedState);
+		states.add(newlyCreatedState);
+		return newlyCreatedState;
+	}
+
+	private <Sts, A, Saut> void applyLabeling(TransitionSystem<Pair<Sts, Saut>, A, Saut> res)
+	{
+		for(Pair<Sts,Saut> state : res.getStates()){
+			Saut saut = state.getSecond();
+			res.addAtomicProposition(saut);
+			res.addToLabel(state, saut);
+		}
+	}
+
 	/*no need for hw2*/
 	@Override
 	public <Sts, Saut, A, P> TransitionSystem<Pair<Sts, Saut>, A, Saut> product(TransitionSystem<Sts, A, P> ts, Automaton<Saut, P> aut)
@@ -1374,47 +1403,33 @@ public class FvmFacadeImpl implements FvmFacade {
 		TransitionSystem<Pair<Sts, Saut>, A, Saut> res = new TransitionSystemImpl();
 		generateProductInitialStates(res, ts, aut);
 
-		ArrayList<Pair<Sts,Saut>> states = new ArrayList<>(res.getInitialStates());
-    	Set<Transition<Sts,A>> transitions = ts.getTransitions();
-    	while(states.size()>0){
-    		Pair<Sts,Saut> s = states.get(0);
-    		states.remove(s);
-    		Sts sts = s.getFirst();
-    		Saut saut = s.getSecond();
-    		for(Transition<Sts,A> trans : transitions){
-    			if(trans.getFrom().equals(sts)){
-    				Sts destTs = trans.getTo();
-    				Set<P> label = ts.getLabel(destTs);
-    				A action = trans.getAction();
-    				Set<Saut> nextstatesA = aut.nextStates(saut, label);
-    				if(nextstatesA!=null){
-	    				for(Saut destAut : nextstatesA){
-	    					List<Pair<Sts,Saut>> currstates = new ArrayList<Pair<Sts,Saut>>(res.getStates());
-	    					Pair<Sts,Saut> news = new Pair<Sts,Saut>(destTs,destAut);
-	    					Pair<Sts,Saut> exist = listContains(currstates,news);
-	    					if( exist == null){
-	    						res.addState(news);
-	    						states.add(news);
-	    						exist = news;
-	    					}
-	    					res.addAction(action);
-	    					Transition<Pair<Sts,Saut>,A> newtrans = new Transition<Pair<Sts,Saut>, A>(s, action, exist);
-	    					res.addTransition(newtrans);
-	    				}
-    				}
-    			}
-    		}
-    	}
-    	states = new ArrayList<Pair<Sts,Saut>>(res.getStates());
-    	for(Pair<Sts,Saut> s : states){
-    		Saut saut = s.getSecond();
-    		res.addAtomicProposition(saut);
-    		res.addToLabel(s, saut);
-    	}
-    	return res;
+		LinkedList<Pair<Sts,Saut>> states = new LinkedList<>(res.getInitialStates());
+		while(states.size()>0){
+			Pair<Sts,Saut> s = states.removeFirst();
+			Sts currentTsState = s.getFirst();
+			Saut currentAutomatonState = s.getSecond();
+			for(Transition<Sts,A> transition : ts.getTransitions()){
+				if(transition.getFrom().equals(currentTsState)){
+					Sts tsDestState = transition.getTo();
+					Set<P> tsDestStateLabel = ts.getLabel(tsDestState);
+					A action = transition.getAction();
+					if(aut.nextStates(currentAutomatonState, tsDestStateLabel) != null){
+						Iterator<Saut> destAutomatonStateIt = aut.nextStates(currentAutomatonState, tsDestStateLabel).iterator();
+						while (destAutomatonStateIt.hasNext())
+						{
+							Saut destAutomatonState = destAutomatonStateIt.next();
+							Pair<Sts,Saut> destState = getNextState(res, destAutomatonState, tsDestState, states);
+							res.addAction(action);
+							Transition<Pair<Sts,Saut>,A> newlyCreatedTransition = new Transition<>(s, action, destState);
+							res.addTransition(newlyCreatedTransition);
+						}
+					}
+				}
+			}
+		}
+		applyLabeling(res);
+		return res;
 	}
-	
-
 
 	@Override
 	public ProgramGraph<String, String> programGraphFromNanoPromela(String filename) throws Exception {
@@ -1543,19 +1558,6 @@ public class FvmFacadeImpl implements FvmFacade {
 				r.add(s2prime);
 			}
 		}
-		
-	}
-	
-	private <Sts,Saut> Pair<Sts,Saut> listContains(List<Pair<Sts, Saut>> currstates, Pair<Sts, Saut> news) {
-		for(Pair<Sts, Saut> s : currstates){
-			if(s.getFirst().equals(news.getFirst())){
-				if(s.getSecond().equals(news.getSecond())){
-					return s;
-				}
-			}
-		}
-		return null;
-	}
 
-
+	}
 }
