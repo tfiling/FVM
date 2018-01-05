@@ -25,7 +25,6 @@ import il.ac.bgu.cs.fvm.verification.VerificationResult;
 import il.ac.bgu.cs.fvm.verification.VerificationSucceeded;
 
 public class MutualExclusionDemo {
-public static Peterson p = new Peterson();
 
 	public static void main(String[] args) {
 
