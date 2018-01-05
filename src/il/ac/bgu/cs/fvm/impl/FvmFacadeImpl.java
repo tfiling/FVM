@@ -1449,33 +1449,95 @@ public class FvmFacadeImpl implements FvmFacade {
 		return checkKindStmtPG(root);
 	}
 
+	private <S, Saut, A, P> Map<Pair<S,Saut>,List<S>> generateInvalidPaths(TransitionSystem<Pair<S, Saut>, A, Saut> product, Automaton<Saut, P> aut)
+	{
+		Map<Pair<S,Saut>,List<S>> accumulatedInvalidPaths = new HashMap<>();
+		Set<Pair<S, Saut>> statesAlreadyInspected = new HashSet<>();
+		Set<Pair<S,Saut>> initialStates = new HashSet<>(product.getInitialStates());
+		Stack<Pair<S, Saut>> statesRequiringInspection = new Stack<>();
+		List<S> prefix;
+		while(!initialStates.isEmpty())
+		{
+			Pair<S,Saut> examinedInitialState = initialStates.iterator().next();
+			statesRequiringInspection.push(examinedInitialState);
+			statesAlreadyInspected.add(examinedInitialState);
+			prefix  = new ArrayList<>();
+			prefix.add(statesRequiringInspection.peek().getFirst());
+			while(!statesRequiringInspection.isEmpty())
+			{
+				Pair<S, Saut> inspectedState = statesRequiringInspection.peek();
+				Set<Pair<S, Saut>> postStates = post(product, inspectedState);
+				List<Pair<S, Saut>> postStatesForInspection = postStates
+						.stream()
+						.filter(x -> !statesAlreadyInspected.contains(x))
+						.collect(Collectors.toList());
+				if(postStatesForInspection.size() == 0)
+				{
+					statesRequiringInspection.pop();
+					if(aut.getAcceptingStates().contains(inspectedState.getSecond()))
+					{
+						if(!accumulatedInvalidPaths.containsKey(inspectedState))
+						{
+							accumulatedInvalidPaths.put(inspectedState, new ArrayList<>(prefix));
+						}
+					}
+					if(prefix.size()>0)
+						prefix.remove(prefix.size()-1);
+				}
+				else
+				{
+					Pair<S, Saut> stateForInspection = postStatesForInspection.get(0);
+					prefix.add(stateForInspection.getFirst());
+					statesRequiringInspection.push(stateForInspection);
+					statesAlreadyInspected.add(stateForInspection);
+				}
+			}
+			initialStates.removeAll(statesAlreadyInspected);
+		}
+		return accumulatedInvalidPaths;
+	}
+
 	@Override
 	public <S, A, P, Saut> VerificationResult<S> verifyAnOmegaRegularProperty(TransitionSystem<S, A, P> ts, Automaton<Saut, P> aut) {
 		TransitionSystem<Pair<S, Saut>, A, Saut>  product = product(ts,aut);
-		Set<Pair<S, Saut>> R = new HashSet<>();
-		Set<Pair<S,Saut>> I = product.getInitialStates();
-		Map<Pair<S, Saut>,List<S>> badStates = new HashMap<>();	
-		Stack<Pair<S, Saut>> U = new Stack<>();
-		List<Pair<S,Saut>> temp = new ArrayList<>(difference(I, R));
-		while(temp.size()>0){
-			Pair<S,Saut> s = temp.get(0);
-			visit(product,aut.getAcceptingStates(),s,U,R,badStates);
-			temp = new ArrayList<>(difference(I, R));
-		}
-		
+		Map<Pair<S, Saut>,List<S>> invalidPaths = generateInvalidPaths(product, aut);
+
 		List<S> cycle;
-		Set<Pair<S, Saut>> T = new HashSet<>();
-		Stack<Pair<S, Saut>> V = new Stack<>();
-		Set<Pair<S, Saut>> states = badStates.keySet();
+		Set<Pair<S, Saut>> states = invalidPaths.keySet();
 		for(Pair<S,Saut> s : states){
-			T = new HashSet<>();
-			V = new Stack<>();
-			cycle = cycle(product,s,T,V);
-			if(cycle !=null){
-				VerificationFailed<S> res = new VerificationFailed<>();
-				res.setPrefix(badStates.get(s));
-				res.setCycle(cycle);
-				return res;
+			final Set<Pair<S, Saut>> T = new HashSet<>();
+			Stack<Pair<S, Saut>> V = new Stack<>();
+			V.push(s);
+			T.add(s);
+			cycle = new ArrayList<>();
+			while(!V.isEmpty()){
+				Pair<S, Saut> sprime = V.peek();
+				Set<Pair<S, Saut>> post = post(product, sprime);
+				if(post.contains(s)){
+					cycle.add(s.getFirst());
+					VerificationFailed<S> res = new VerificationFailed<>();
+					res.setPrefix(invalidPaths.get(s));
+					res.setCycle(cycle);
+					return res;
+				}
+				else{
+					List<Pair<S, Saut>> dif = post
+							.stream()
+							.filter(x -> !T.contains(x))
+							.collect(Collectors.toList());
+					if(dif.size()!=0){
+						Pair<S, Saut> s2prime = dif.get(0);
+						cycle.add(s2prime.getFirst());
+						V.push(s2prime);
+						T.add(s2prime);
+					}
+					else{
+						V.pop();
+						if(cycle.size()>0){
+							cycle.remove(cycle.size()-1);
+						}
+					}
+				}
 			}
 		}
 		return new VerificationSucceeded<>();
@@ -1485,79 +1547,10 @@ public class FvmFacadeImpl implements FvmFacade {
 	public <L> Automaton<?, L> LTL2NBA(LTL<L> ltl) {
 		throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement LTL2NBA
 	}
-
 	@Override
 	public <L> Automaton<?, L> GNBA2NBA(MultiColorAutomaton<?, L> mulAut) {
 		throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement GNBA2NBA
 	}
-	
-	private <S,Saut> Set<Pair<S, Saut>> difference(Set<Pair<S, Saut>> I, Set<Pair<S, Saut>> R){
-		Set<Pair<S, Saut>> dif = new HashSet<>();
-		for(Pair<S,Saut> s : I){
-			if(!R.contains(s)){
-				dif.add(s);
-			}
-		}
-		return dif;
-	}
-	
-	private <S,Saut,A> List<S> cycle(TransitionSystem<Pair<S, Saut>, A, Saut> product, Pair<S, Saut> s, Set<Pair<S, Saut>> t,
-			Stack<Pair<S, Saut>> v) {
-		List<S> cycle= new ArrayList<>();
-		v.push(s);
-		t.add(s);
-		while(!v.isEmpty()){
-			Pair<S, Saut> sprime = v.peek();
-			Set<Pair<S, Saut>> post = post(product, sprime);
-			if(post.contains(s)){
-				cycle.add(s.getFirst());
-				return cycle;
-			}
-			else{
-				List<Pair<S, Saut>> dif = new ArrayList<>(difference(post, t));
-				if(dif.size()!=0){
-					Pair<S, Saut> s2prime = dif.get(0);
-					cycle.add(s2prime.getFirst());
-					v.push(s2prime);
-					t.add(s2prime);
-				}
-				else{
-					v.pop();
-					if(cycle.size()>0){
-						cycle.remove(cycle.size()-1);
-					}
-				}
-			}
-		}
-		return null;
-	}
-	
-	private <S,Saut,A> void visit(TransitionSystem<Pair<S, Saut>, A, Saut>  product,Set<Saut> acc,Pair<S, Saut> s,
-			Stack<Pair<S, Saut>> u, Set<Pair<S, Saut>> r, Map<Pair<S, Saut>, List<S>> badStates) {
-		u.push(s);
-		r.add(s);
-		List<S> prefix  = new ArrayList<>();
-		prefix.add(s.getFirst());
-		while(!u.isEmpty()){
-			Pair<S, Saut> sprime = u.peek();	
-			Set<Pair<S, Saut>> post = post(product, sprime);
-			List<Pair<S, Saut>> dif = new ArrayList<>(difference(post, r));
-			if(dif.size() == 0){
-				u.pop();
-				if(acc.contains(sprime.getSecond())){
-					if(!badStates.containsKey(sprime))
-						badStates.put(sprime, new ArrayList<>(prefix));	
-				}
-				if(prefix.size()>0)
-					prefix.remove(prefix.size()-1);
-			}
-			else{
-				Pair<S, Saut> s2prime = dif.get(0);
-				prefix.add(s2prime.getFirst());
-				u.push(s2prime);
-				r.add(s2prime);
-			}
-		}
 
-	}
+	// returns the states in I that are not in R
 }
