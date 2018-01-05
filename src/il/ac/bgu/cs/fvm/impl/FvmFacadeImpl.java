@@ -1340,29 +1340,41 @@ public class FvmFacadeImpl implements FvmFacade {
 		return toRetTS;
 	}
 
-	
+	private <Sts, Saut, A, P> void generateProductInitialStates(TransitionSystem<Pair<Sts, Saut>, A, Saut> res, TransitionSystem<Sts, A, P> ts, Automaton<Saut, P> aut)
+	{
+		Iterator<Sts> tsInitialStatesIt = ts.getInitialStates().iterator();
+		while (tsInitialStatesIt.hasNext()){
+			{
+				Sts tsState = tsInitialStatesIt.next();
+				Set<P> tsStateLabel = ts.getLabel(tsState);
+				Iterator<Saut> automatonInitialStatesIt = aut.getInitialStates().iterator();
+				while (automatonInitialStatesIt.hasNext())
+				{
+					Saut automatonState = automatonInitialStatesIt.next();
+					if (aut.nextStates(automatonState, tsStateLabel) != null)
+					{
+						Iterator<Saut> nextAutomatonStatesIterator = aut.nextStates(automatonState, tsStateLabel).iterator();
+						while (nextAutomatonStatesIterator.hasNext())
+						{
+							Saut nextAutomatonState = nextAutomatonStatesIterator.next();
+							Pair<Sts, Saut> newInitialState = new Pair<>(tsState, nextAutomatonState);
+							res.addState(newInitialState);
+							res.addInitialState(newInitialState);
+						}
+					}
+				}
+			}
+		}
+	}
 
 	/*no need for hw2*/
 	@Override
 	public <Sts, Saut, A, P> TransitionSystem<Pair<Sts, Saut>, A, Saut> product(TransitionSystem<Sts, A, P> ts, Automaton<Saut, P> aut)
 	{
-		TransitionSystem<Pair<Sts, Saut>, A, Saut> res = new TransitionSystemImpl<Pair<Sts,Saut>, A, Saut>();
-    	Set<Sts> initialTs = ts.getInitialStates();
-    	Iterable<Saut> initialAut = aut.getInitialStates();
-    	for(Sts sts : initialTs){
-    		Set<P> label = ts.getLabel(sts);
-    		for(Saut saut : initialAut){
-    			Set<Saut> nextstatesA = aut.nextStates(saut, label);
-    			if(nextstatesA!=null){
-	    			for(Saut initAut : nextstatesA){
-	    				Pair<Sts, Saut> init = new Pair<Sts, Saut>(sts, initAut);
-	    				res.addState(init);
-	    				res.addInitialState(init);
-	    			}
-    			}
-    		}
-    	}
-    	List<Pair<Sts,Saut>> states = new ArrayList<Pair<Sts,Saut>>(res.getInitialStates());
+		TransitionSystem<Pair<Sts, Saut>, A, Saut> res = new TransitionSystemImpl();
+		generateProductInitialStates(res, ts, aut);
+
+		ArrayList<Pair<Sts,Saut>> states = new ArrayList<>(res.getInitialStates());
     	Set<Transition<Sts,A>> transitions = ts.getTransitions();
     	while(states.size()>0){
     		Pair<Sts,Saut> s = states.get(0);
@@ -1399,7 +1411,8 @@ public class FvmFacadeImpl implements FvmFacade {
     		res.addAtomicProposition(saut);
     		res.addToLabel(s, saut);
     	}
-    	return res;	}
+    	return res;
+	}
 	
 
 
@@ -1450,7 +1463,8 @@ public class FvmFacadeImpl implements FvmFacade {
 				return res;
 			}
 		}
-		return new VerificationSucceeded<>();	}
+		return new VerificationSucceeded<>();
+	}
 
 	@Override
 	public <L> Automaton<?, L> LTL2NBA(LTL<L> ltl) {
