@@ -1499,48 +1499,49 @@ public class FvmFacadeImpl implements FvmFacade {
 
 	@Override
 	public <S, A, P, Saut> VerificationResult<S> verifyAnOmegaRegularProperty(TransitionSystem<S, A, P> ts, Automaton<Saut, P> aut) {
+		VerificationSucceeded success = new VerificationSucceeded();
 		TransitionSystem<Pair<S, Saut>, A, Saut>  product = product(ts,aut);
 		Map<Pair<S, Saut>,List<S>> invalidPaths = generateInvalidPaths(product, aut);
 
 		List<S> cycle;
 		Set<Pair<S, Saut>> states = invalidPaths.keySet();
-		for(Pair<S,Saut> s : states){
-			final Set<Pair<S, Saut>> T = new HashSet<>();
-			Stack<Pair<S, Saut>> V = new Stack<>();
-			V.push(s);
-			T.add(s);
+		for(Pair<S,Saut> currentState : states){
+			final Set<Pair<S, Saut>> statesAlreadyExamined = new HashSet<>();
+			Stack<Pair<S, Saut>> statesRequiringInspection = new Stack<>();
+			statesRequiringInspection.push(currentState);
+			statesAlreadyExamined.add(currentState);
 			cycle = new ArrayList<>();
-			while(!V.isEmpty()){
-				Pair<S, Saut> sprime = V.peek();
-				Set<Pair<S, Saut>> post = post(product, sprime);
-				if(post.contains(s)){
-					cycle.add(s.getFirst());
-					VerificationFailed<S> res = new VerificationFailed<>();
-					res.setPrefix(invalidPaths.get(s));
-					res.setCycle(cycle);
-					return res;
+			while(!statesRequiringInspection.isEmpty()){
+				Pair<S, Saut> examinedState = statesRequiringInspection.peek();
+				Set<Pair<S, Saut>> postStates = post(product, examinedState);
+				if(postStates.contains(currentState)){
+					cycle.add(currentState.getFirst());
+					VerificationFailed<S> verificationFailure = new VerificationFailed<>();
+					verificationFailure.setPrefix(invalidPaths.get(currentState));
+					verificationFailure.setCycle(cycle);
+					return verificationFailure;
 				}
 				else{
-					List<Pair<S, Saut>> dif = post
+					List<Pair<S, Saut>> postStatesRequiringInspection = postStates
 							.stream()
-							.filter(x -> !T.contains(x))
+							.filter(x -> !statesAlreadyExamined.contains(x))
 							.collect(Collectors.toList());
-					if(dif.size()!=0){
-						Pair<S, Saut> s2prime = dif.get(0);
-						cycle.add(s2prime.getFirst());
-						V.push(s2prime);
-						T.add(s2prime);
-					}
-					else{
-						V.pop();
+					if(postStatesRequiringInspection.isEmpty()){
+						statesRequiringInspection.pop();
 						if(cycle.size()>0){
 							cycle.remove(cycle.size()-1);
 						}
 					}
+					else{
+						Pair<S, Saut> state = postStatesRequiringInspection.get(0);
+						cycle.add(state.getFirst());
+						statesRequiringInspection.push(state);
+						statesAlreadyExamined.add(state);
+					}
 				}
 			}
 		}
-		return new VerificationSucceeded<>();
+		return success;
 	}
 
 	@Override
