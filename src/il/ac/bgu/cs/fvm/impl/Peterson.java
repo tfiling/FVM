@@ -1,9 +1,11 @@
 package il.ac.bgu.cs.fvm.impl;
 
+import static il.ac.bgu.cs.fvm.util.CollectionHelper.seq;
 import static il.ac.bgu.cs.fvm.util.CollectionHelper.set;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -25,16 +27,15 @@ public class Peterson {
 
 	public Peterson() {}
 	
-public static void verifyPeterson1() throws Exception{
-		/*Regular Peterson code for 2 processes. */
-		  String peterson1P1 = 
+public static void PetersonA() throws Exception{
+		  String petersonA1 = 
 				  "do :: true -> \n"
 				+ "    atomic {b1:=1 ; x:=2};\n"
 				+ "    if :: (x==1) || (b2==0) -> crit1:=1 fi; \n"
 				+ "    atomic { crit1:= 0 ; b1:=0}\n"
 				+ "od";
 		
-		  String peterson1P2 = 
+		  String petersonA2 = 
 				  "do :: true -> \n"
 				+ "    atomic{b2:=1 ; x:=1};\n"
 				+ "    if :: (x==2) || (b1==0) -> crit2:=1 fi; \n"
@@ -42,20 +43,18 @@ public static void verifyPeterson1() throws Exception{
 				+ "od";
 		  
 		  System.out.println("verify peterson 1\n"); 
-		  verifyStrings(peterson1P1, peterson1P2);
-		  System.out.println();
-		  
+		  checkTheWord(petersonA1, petersonA2);	  
 	}
 	
-public static void verifyPeterson2() throws Exception{
-	  String peterson2P1 = 
+public static void PetersonB() throws Exception{
+	  String petersonB1 = 
 			  "do :: true -> \n"
 			+ "    b1:=1 ; x:=2;\n"
 			+ "    if :: (x==1) || (b2==0) -> crit1:=1 fi; \n"
 			+ "    atomic { crit1:= 0 ; b1:=0}\n"
 			+ "od";
 	
-	  String peterson2P2 = 
+	  String petersonB2 = 
 			  "do :: true -> \n"
 			+ "    b2:=1 ; x:=1;\n"
 			+ "    if :: (x==2) || (b1==0) -> crit2:=1 fi; \n"
@@ -63,21 +62,18 @@ public static void verifyPeterson2() throws Exception{
 			+ "od";
 	  
 	  System.out.println("verify peterson 2\n"); 
-	  verifyStrings(peterson2P1, peterson2P2);
-	  System.out.println();
-	  
+	  checkTheWord(petersonB1, petersonB2);  
 }
 
-public static void verifyPeterson3() throws Exception{
-	/*Regular Peterson code for 2 processes. */
-	  String peterson3P1 = 
+public static void PetersonC() throws Exception{
+	  String petersonC1 = 
 			  "do :: true -> \n"
 			+ "    x:=2; b1:=1 ;\n"
 			+ "    if :: (x==1) || (b2==0) -> crit1:=1 fi; \n"
 			+ "    atomic { crit1:= 0 ; b1:=0}\n"
 			+ "od";
 	
-	  String peterson3P2 = 
+	  String petersonC2 = 
 			  "do :: true -> \n"
 			+ "    x:=1; b2:=1 ;\n"
 			+ "    if :: (x==2) || (b1==0) -> crit2:=1 fi; \n"
@@ -85,39 +81,63 @@ public static void verifyPeterson3() throws Exception{
 			+ "od";
 	  
 	  System.out.println("verify peterson 3\n"); 
-	  verifyStrings(peterson3P1, peterson3P2);
-	  System.out.println();
+	  checkTheWord(petersonC1, petersonC2);
 	  
 }
 
 
-private static void verifyStrings(String s1,String s2) throws Exception{
-		
+private static void checkTheWord(String str1,String str2) throws Exception{
+		//create a fvm
 		FvmFacade fvmImpl = FvmFacade.createInstance();
-		ProgramGraph<String, String> pg1 = fvmImpl.programGraphFromNanoPromelaString(s1);
-		ProgramGraph<String, String> pg2 = fvmImpl.programGraphFromNanoPromelaString(s2);
+		
+		//create 2 PG and then intreleave them
+		ProgramGraph<String, String> pg1 = fvmImpl.programGraphFromNanoPromelaString(str1);
+		ProgramGraph<String, String> pg2 = fvmImpl.programGraphFromNanoPromelaString(str2);
 		ProgramGraph<Pair<String,String>, String> pg = fvmImpl.interleave(pg1, pg2);
-		Set<ActionDef> ad = set(new ParserBasedActDef());
-		Set<ConditionDef> cd = set(new ParserBasedCondDef());
-		TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts = fvmImpl.transitionSystemFromProgramGraph(pg, ad, cd);
+		
+		
+		Set<ActionDef> actDef = set(new ParserBasedActDef());
+		Set<ConditionDef> condDef = set(new ParserBasedCondDef());
+		TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts = fvmImpl.transitionSystemFromProgramGraph(pg, actDef, condDef);
 		
 		checkAndVerifyTS(ts);
 	}
 
-static void checkAndVerifyTS(TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts) {
+public static void checkAndVerifyTS(TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts) {
 	FvmFacade fvmImpl = FvmFacade.createInstance();
-	List<Pair<Pair<String, String>, Map<String, Object>>>  states = new ArrayList<>(ts.getStates());
-	for(int i = 0 ; i<states.size();i++){
-		Set<String> label = new HashSet<>(ts.getLabel(states.get(i)));
-		for(String s : label){
-			if(s.startsWith("<") || s.startsWith("x") || s.startsWith("y")|| s.endsWith("0")){
-				ts.removeLabel(states.get(i), s);
+	List<Pair<Pair<String, String>, Map<String, Object>>>  allStates = new ArrayList<>(ts.getStates());
+	
+	for(int i = 0 ; i<allStates.size();i++){
+		Set<String> label = new HashSet<>(ts.getLabel(allStates.get(i)));
+	    Iterator<String> iterator = label.iterator();
+
+	    while(iterator.hasNext()) 
+		{
+			String labelElement = iterator.next();
+			if(labelElement.startsWith("<") || labelElement.startsWith("x") || labelElement.startsWith("y")|| labelElement.endsWith("0")){
+				ts.removeLabel(allStates.get(i), labelElement);
 			}
 		}
 	}
-	
+
 	VerificationResult<Pair<Pair<String,String>,Map<String,Object>>> verificationRes = fvmImpl.verifyAnOmegaRegularProperty(ts, createAutoMutualExclusion());
 	
+	verifyTheResults(verificationRes, fvmImpl, ts);
+	
+}
+
+public static void addLabels(TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts) {
+	seq("b1 = 1", "b2 = 1", "crit1 = 1", "crit2 = 1").stream().forEach(s -> ts.addAtomicPropositions(s));
+		
+	ts.getStates().stream().filter(s -> s.getFirst().getFirst().equals("crit1")).forEach(s -> ts.addToLabel(s, "crit1 = 1"));
+	ts.getStates().stream().filter(s -> s.getFirst().getFirst().equals("wait1")).forEach(s -> ts.addToLabel(s, "b1 = 1"));
+	ts.getStates().stream().filter(s -> s.getFirst().getSecond().equals("crit2")).forEach(s -> ts.addToLabel(s, "crit2 = 1"));
+	ts.getStates().stream().filter(s -> s.getFirst().getSecond().equals("wait2")).forEach(s -> ts.addToLabel(s, "b2 = 1"));
+}
+
+
+private static void verifyTheResults(
+		VerificationResult<Pair<Pair<String, String>, Map<String, Object>>> verificationRes, FvmFacade fvmImpl, TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts) {
 	if(verificationRes instanceof VerificationSucceeded){
 		System.out.println("The is mutual execlusion Baby");
 	}
@@ -134,7 +154,6 @@ static void checkAndVerifyTS(TransitionSystem<Pair<Pair<String, String>, Map<Str
 		System.out.println(verificationRes2);
 	}
 	
-	/*verify the transition system  - starvation freedom property - P2*/
 	VerificationResult<Pair<Pair<String,String>,Map<String,Object>>> verificationRes3 = fvmImpl.verifyAnOmegaRegularProperty(ts, createAutoStarvation2());
 	if(verificationRes3 instanceof VerificationSucceeded){
 		System.out.println("The is starvation freedom property - P2 . YES BABY!!!");
@@ -142,48 +161,56 @@ static void checkAndVerifyTS(TransitionSystem<Pair<Pair<String, String>, Map<Str
 		System.out.println("Its not a starvation for P2!! \n for example:");
 		System.out.println(verificationRes3);
 	}
+	
 }
 
 private static Automaton<String, String> createAutoMutualExclusion(){
 	Automaton<String, String> auto = new Automaton<>();
 	auto.setInitial("q0");
 	auto.setAccepting("q1");
-	for(int i = 0 ; i<2 ;i++){
-		for(int j=0 ; j<2 ; j++){
-			Set<String> t = new HashSet<>();
-			Set<String> t2 = new HashSet<>();
-			t.add("crit1 = 1");
-			t.add("crit2 = 1");
-			t.add("b1 = "+i);
-			t.add("b2 = "+j);
-			for(String ss : t){
-				if(!ss.endsWith("0"))
-					t2.add(ss);
-			}
-			auto.addTransition("q0",t2, "q1");
-		}
-	}		
-	for(int i = 0 ; i<2 ;i++){
-		for(int j=0 ; j<2 ; j++){
-			for(int k=0;k<2;k++){
-				for(int m=0;m<2;m++){
-					Set<String> t = new HashSet<>();
-					Set<String> t2 = new HashSet<>();
-					if(k+m<2){
-						t.add("crit1 = "+k);
-						t.add("crit2 = "+m);
-						t.add("b1 = "+i);
-						t.add("b2 = "+j);
-						for(String ss : t){
-							if(!ss.endsWith("0"))
-								t2.add(ss);
-						}
-						auto.addTransition("q0",t2, "q0");
-					}
-				}
-			}
-		}
-	}	
+	createAutoMutualExclusionA(auto);
+	createAutoMutualExclusionB(auto);
+	createAutoMutualExclusionC(auto);
+	
+	return auto;
+}
+
+
+
+private static Automaton<String, String> createAutoStarvation1(){
+	Automaton<String, String> auto = new Automaton<>();
+	auto.setInitial("q0");
+	auto.setAccepting("q1");
+	auto.addState("q2");
+	createAutoStarvation1A(auto);
+	createAutoStarvation1B(auto);
+	createAutoStarvation1C(auto);
+	
+	return auto;
+}
+
+
+
+private static Automaton<String, String> createAutoStarvation2(){
+	Automaton<String, String> auto = new Automaton<>();
+	auto.setInitial("q0");
+	auto.setAccepting("q1");
+	auto.addState("q2");
+	createAutoStarvation2A(auto);	
+	createAutoStarvation2B(auto);
+	createAutoStarvation2C(auto);
+	
+	return auto;
+}
+
+
+
+
+/*///////////////////////////////////////////
+ * ////////////////Helpers//////////////
+ *//////////////////////////////////////////
+
+private static void createAutoStarvation1C(Automaton<String, String> auto) {
 	for(int i = 0 ; i<2 ;i++){
 		for(int j=0 ; j<2 ; j++){
 			for(int k=0;k<2;k++){
@@ -198,34 +225,16 @@ private static Automaton<String, String> createAutoMutualExclusion(){
 						if(!ss.endsWith("0"))
 							t2.add(ss);
 					}
-					auto.addTransition("q1",t2, "q1");
+					auto.addTransition("q2",t2, "q2");
+					auto.addTransition("q0",new HashSet<>(t2), "q0");
 				}
 			}
 		}
 	}
-	return auto;
+	
 }
 
-private static Automaton<String, String> createAutoStarvation1(){
-	Automaton<String, String> auto = new Automaton<>();
-	auto.setInitial("q0");
-	auto.setAccepting("q1");
-	auto.addState("q2");
-	for(int i = 0 ; i<2 ;i++){
-		for(int j=0 ; j<2 ; j++){
-			Set<String> t = new HashSet<>();
-			Set<String> t2 = new HashSet<>();
-			t.add("crit2 = "+i);
-			t.add("b1 = 1");
-			t.add("b2 = "+j);
-			for(String ss : t){
-				if(!ss.endsWith("0"))
-					t2.add(ss);
-			}
-			auto.addTransition("q0",t2, "q1");
-			auto.addTransition("q1",new HashSet<>(t2), "q1");
-		}
-	}		
+private static void createAutoStarvation1B(Automaton<String, String> auto) {
 	for(int i = 0 ; i<2 ;i++){
 		for(int j=0 ; j<2 ; j++){
 			for(int k=0;k<2;k++){
@@ -247,6 +256,72 @@ private static Automaton<String, String> createAutoStarvation1(){
 			}
 		}
 	}	
+	
+}
+
+private static void createAutoStarvation1A(Automaton<String, String> auto) {
+	for(int i = 0 ; i<2 ;i++){
+		for(int j=0 ; j<2 ; j++){
+			Set<String> t = new HashSet<>();
+			Set<String> t2 = new HashSet<>();
+			t.add("crit2 = "+i);
+			t.add("b1 = 1");
+			t.add("b2 = "+j);
+			for(String ss : t){
+				if(!ss.endsWith("0"))
+					t2.add(ss);
+			}
+			auto.addTransition("q0",t2, "q1");
+			auto.addTransition("q1",new HashSet<>(t2), "q1");
+		}
+	}			
+}
+
+private static void createAutoMutualExclusionA(Automaton<String, String> auto) {
+	for(int i = 0 ; i<2 ;i++){
+		for(int j=0 ; j<2 ; j++){
+			Set<String> t = new HashSet<>();
+			Set<String> t2 = new HashSet<>();
+			t.add("crit1 = 1");
+			t.add("crit2 = 1");
+			t.add("b1 = "+i);
+			t.add("b2 = "+j);
+			for(String ss : t){
+				if(!ss.endsWith("0"))
+					t2.add(ss);
+			}
+			auto.addTransition("q0",t2, "q1");
+		}
+	}		
+	
+}
+
+private static void createAutoMutualExclusionB(Automaton<String, String> auto) {
+	for(int i = 0 ; i<2 ;i++){
+		for(int j=0 ; j<2 ; j++){
+			for(int k=0;k<2;k++){
+				for(int m=0;m<2;m++){
+					Set<String> t = new HashSet<>();
+					Set<String> t2 = new HashSet<>();
+					if(k+m<2){
+						t.add("crit1 = "+k);
+						t.add("crit2 = "+m);
+						t.add("b1 = "+i);
+						t.add("b2 = "+j);
+						for(String ss : t){
+							if(!ss.endsWith("0"))
+								t2.add(ss);
+						}
+						auto.addTransition("q0",t2, "q0");
+					}
+				}
+			}
+		}
+	}	
+	
+}
+
+private static void createAutoMutualExclusionC(Automaton<String, String> auto) {
 	for(int i = 0 ; i<2 ;i++){
 		for(int j=0 ; j<2 ; j++){
 			for(int k=0;k<2;k++){
@@ -261,23 +336,17 @@ private static Automaton<String, String> createAutoStarvation1(){
 						if(!ss.endsWith("0"))
 							t2.add(ss);
 					}
-					auto.addTransition("q2",t2, "q2");
-					auto.addTransition("q0",new HashSet<>(t2), "q0");
+					auto.addTransition("q1",t2, "q1");
 				}
 			}
 		}
-	}
-	return auto;
+	}	
 }
 
-private static Automaton<String, String> createAutoStarvation2(){
-	int i,j,k;
-	Automaton<String, String> auto = new Automaton<>();
-	auto.setInitial("q0");
-	auto.setAccepting("q1");
-	auto.addState("q2");
-	for( i = 0 ; i<2 ;i++){
-		for( j=0 ; j<2 ; j++){
+
+private static void createAutoStarvation2A(Automaton<String, String> auto) {
+	for(int i = 0 ; i<2 ;i++){
+		for(int j=0 ; j<2 ; j++){
 			Set<String> t = new HashSet<>();
 			Set<String> t2 = new HashSet<>();
 			t.add("crit1 = "+i);
@@ -291,13 +360,10 @@ private static Automaton<String, String> createAutoStarvation2(){
 			auto.addTransition("q1",new HashSet<>(t2), "q1");
 		}
 	}		
-	createTranA(auto);
-	createTranB(auto);
 	
-	return auto;
 }
 
-private static void createTranA(Automaton<String, String> auto) {
+private static void createAutoStarvation2B(Automaton<String, String> auto) {
 	for(int i = 0 ; i<2 ;i++){
 		for(int j=0 ; j<2 ; j++){
 			for(int k=0;k<2;k++){
@@ -322,7 +388,7 @@ private static void createTranA(Automaton<String, String> auto) {
 	
 }
 
-private static void createTranB(Automaton<String, String> auto) {
+private static void createAutoStarvation2C(Automaton<String, String> auto) {
 	for(int i = 0 ; i<2 ;i++){
 		for(int j=0 ; j<2 ; j++){
 			for(int k=0;k<2;k++){

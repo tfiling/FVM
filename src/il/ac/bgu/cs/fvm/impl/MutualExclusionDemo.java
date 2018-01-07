@@ -29,9 +29,9 @@ public class MutualExclusionDemo {
 	public static void main(String[] args) {
 
 		try {
-			Peterson.verifyPeterson1();
-			Peterson.verifyPeterson2();
-			Peterson.verifyPeterson3();
+			Peterson.PetersonA();
+			Peterson.PetersonB();
+			Peterson.PetersonC();
 			verifySemaphore();
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
@@ -55,7 +55,7 @@ public class MutualExclusionDemo {
 		TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts;
 		ts = fvmFacadeImpl.transitionSystemFromProgramGraph(pg, ad, cd);
 
-		addLabels(ts);
+		Peterson.addLabels(ts);
 		Peterson.checkAndVerifyTS(ts);
 	}
 	
@@ -82,15 +82,6 @@ public class MutualExclusionDemo {
 
     }
 	
-	// Add labels to ts for formulating mutual exclusion properties.
-	private static void addLabels(TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts) {
-		seq("b1 = 1", "b2 = 1", "crit1 = 1", "crit2 = 1").stream().forEach(s -> ts.addAtomicPropositions(s));
-
-		ts.getStates().stream().filter(s -> s.getFirst().getFirst().equals("crit1")).forEach(s -> ts.addToLabel(s, "crit1 = 1"));
-		ts.getStates().stream().filter(s -> s.getFirst().getFirst().equals("wait1")).forEach(s -> ts.addToLabel(s, "b1 = 1"));
-
-		ts.getStates().stream().filter(s -> s.getFirst().getSecond().equals("crit2")).forEach(s -> ts.addToLabel(s, "crit2 = 1"));
-		ts.getStates().stream().filter(s -> s.getFirst().getSecond().equals("wait2")).forEach(s -> ts.addToLabel(s, "b2 = 1"));
-	}
+	
 	
 }
