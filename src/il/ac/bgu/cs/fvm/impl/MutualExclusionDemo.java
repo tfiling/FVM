@@ -26,62 +26,45 @@ import il.ac.bgu.cs.fvm.verification.VerificationSucceeded;
 
 public class MutualExclusionDemo {
 
-	public static void main(String[] args) {
+	public static String petersonP1 =
+			"do :: true -> \n"
+					+ "    atomic {b1:=1 ; x:=2};\n"
+					+ "    if :: (x==1) || (b2==0) -> crit1:=1 fi; \n"
+					+ "    atomic { crit1:= 0 ; b1:=0}\n"
+					+ "od";
 
-		try {
-			Peterson.PetersonA();
-			Peterson.PetersonB();
-			Peterson.PetersonC();
-			verifySemaphore();
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+	public static String petersonP2 =
+			"do :: true -> \n"
+					+ "    atomic{b2:=1 ; x:=1};\n"
+					+ "    if :: (x==2) || (b1==0) -> crit2:=1 fi; \n"
+					+ "    atomic {crit2:= 0 ; b2:=0}\n"
+					+ "od";
 
-	}
-	
-	
-	private static void verifySemaphore() throws Exception{
-		System.out.println("verify semaphore");
-		FvmFacade fvmFacadeImpl = FvmFacade.createInstance();
-		ProgramGraph<String, String> pg1 = build(1);
-		ProgramGraph<String, String> pg2 = build(2);
 
-		ProgramGraph<Pair<String, String>, String> pg = fvmFacadeImpl.interleave(pg1, pg2);
+	public static void main(String[] args) throws Exception
+	{
+		System.out.println("We decided to test the peterson algorithm version, described in nano promela," +
+				"in slide #8, in the 8th lecture presentation");
+		System.out.println("nano promela description of the algorithm for process #1");
+		System.out.println(petersonP1);
+		System.out.println("---------------------------------------------------------------");
+		System.out.println("nano promela description of the algorithm for process #2");
+		System.out.println(petersonP2);
 
-		Set<ActionDef> ad = set(new ParserBasedActDef());
-		Set<ConditionDef> cd = set(new ParserBasedCondDef());
+		//create a fvm
+		FvmFacade fvmImpl = FvmFacade.createInstance();
 
-		TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts;
-		ts = fvmFacadeImpl.transitionSystemFromProgramGraph(pg, ad, cd);
+		//create 2 PG and then intreleave them
+		ProgramGraph<String, String> pg1 = fvmImpl.programGraphFromNanoPromelaString(petersonP1);
+		ProgramGraph<String, String> pg2 = fvmImpl.programGraphFromNanoPromelaString(petersonP2);
+		ProgramGraph<Pair<String,String>, String> pg = fvmImpl.interleave(pg1, pg2);
 
-		Peterson.addLabels(ts);
+
+		Set<ActionDef> actDef = set(new ParserBasedActDef());
+		Set<ConditionDef> condDef = set(new ParserBasedCondDef());
+		TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts = fvmImpl.transitionSystemFromProgramGraph(pg, actDef, condDef);
+
 		Peterson.checkAndVerifyTS(ts);
 	}
-	
-	public static ProgramGraph<String, String> build(int id) {
-        ProgramGraph<String, String> pg = FvmFacade.createInstance().createProgramGraph();
-
-        String noncrit = "noncrit" + id;
-        String wait = "wait" + id;
-        String crit = "crit" + id;
-
-        pg.addLocation(noncrit);
-        pg.addLocation(wait);
-        pg.addLocation(crit);
-
-        pg.addInitialLocation(noncrit);
-
-        pg.addTransition(new PGTransition<>(noncrit, "true", "", wait));
-        pg.addTransition(new PGTransition<>(wait, "y>0", "y:=y-1", crit));
-        pg.addTransition(new PGTransition<>(crit, "true", "y:=y+1", noncrit));
-
-        pg.addInitalization(asList("y:=1"));
-
-        return pg;
-
-    }
-	
-	
 	
 }

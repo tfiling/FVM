@@ -28,61 +28,61 @@ public class Peterson {
 	public Peterson() {}
 	
 public static void PetersonA() throws Exception{
-		  String petersonA1 = 
+		  String petersonA1 =
 				  "do :: true -> \n"
 				+ "    atomic {b1:=1 ; x:=2};\n"
 				+ "    if :: (x==1) || (b2==0) -> crit1:=1 fi; \n"
 				+ "    atomic { crit1:= 0 ; b1:=0}\n"
 				+ "od";
-		
-		  String petersonA2 = 
+
+		  String petersonA2 =
 				  "do :: true -> \n"
 				+ "    atomic{b2:=1 ; x:=1};\n"
 				+ "    if :: (x==2) || (b1==0) -> crit2:=1 fi; \n"
 				+ "    atomic {crit2:= 0 ; b2:=0}\n"
 				+ "od";
-		  
-		  System.out.println("verify peterson 1\n"); 
-		  checkTheWord(petersonA1, petersonA2);	  
+
+		  System.out.println("verify peterson 1\n");
+		  checkTheWord(petersonA1, petersonA2);
 	}
-	
+
 public static void PetersonB() throws Exception{
-	  String petersonB1 = 
+	  String petersonB1 =
 			  "do :: true -> \n"
 			+ "    b1:=1 ; x:=2;\n"
 			+ "    if :: (x==1) || (b2==0) -> crit1:=1 fi; \n"
 			+ "    atomic { crit1:= 0 ; b1:=0}\n"
 			+ "od";
-	
-	  String petersonB2 = 
+
+	  String petersonB2 =
 			  "do :: true -> \n"
 			+ "    b2:=1 ; x:=1;\n"
 			+ "    if :: (x==2) || (b1==0) -> crit2:=1 fi; \n"
 			+ "    atomic {crit2:= 0 ; b2:=0}\n"
 			+ "od";
-	  
-	  System.out.println("verify peterson 2\n"); 
-	  checkTheWord(petersonB1, petersonB2);  
+
+	  System.out.println("verify peterson 2\n");
+	  checkTheWord(petersonB1, petersonB2);
 }
 
 public static void PetersonC() throws Exception{
-	  String petersonC1 = 
+	  String petersonC1 =
 			  "do :: true -> \n"
 			+ "    x:=2; b1:=1 ;\n"
 			+ "    if :: (x==1) || (b2==0) -> crit1:=1 fi; \n"
 			+ "    atomic { crit1:= 0 ; b1:=0}\n"
 			+ "od";
-	
-	  String petersonC2 = 
+
+	  String petersonC2 =
 			  "do :: true -> \n"
 			+ "    x:=1; b2:=1 ;\n"
 			+ "    if :: (x==2) || (b1==0) -> crit2:=1 fi; \n"
 			+ "    atomic {crit2:= 0 ; b2:=0}\n"
 			+ "od";
-	  
-	  System.out.println("verify peterson 3\n"); 
+
+	  System.out.println("verify peterson 3\n");
 	  checkTheWord(petersonC1, petersonC2);
-	  
+
 }
 
 
@@ -106,15 +106,17 @@ private static void checkTheWord(String str1,String str2) throws Exception{
 public static void checkAndVerifyTS(TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts) {
 	FvmFacade fvmImpl = FvmFacade.createInstance();
 	List<Pair<Pair<String, String>, Map<String, Object>>>  allStates = new ArrayList<>(ts.getStates());
-	
+
+	System.out.println("filtering labels, keeping only labels related to variables x, b1, b2");
 	for(int i = 0 ; i<allStates.size();i++){
 		Set<String> label = new HashSet<>(ts.getLabel(allStates.get(i)));
 	    Iterator<String> iterator = label.iterator();
 
-	    while(iterator.hasNext()) 
+	    while(iterator.hasNext())
 		{
 			String labelElement = iterator.next();
-			if(labelElement.startsWith("<") || labelElement.startsWith("x") || labelElement.startsWith("y")|| labelElement.endsWith("0")){
+			if(labelElement.startsWith("<") || labelElement.endsWith("0"))
+			{
 				ts.removeLabel(allStates.get(i), labelElement);
 			}
 		}
