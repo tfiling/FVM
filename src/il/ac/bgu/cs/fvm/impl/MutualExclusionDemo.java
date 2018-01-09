@@ -64,7 +64,7 @@ public class MutualExclusionDemo {
 		Set<ConditionDef> condDef = set(new ParserBasedCondDef());
 		TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts = fvmImpl.transitionSystemFromProgramGraph(pg, actDef, condDef);
 
-		Peterson.checkAndVerifyTS(ts);
+		Peterson.analyzeAlgorithm(ts);
 	}
 	
 }
