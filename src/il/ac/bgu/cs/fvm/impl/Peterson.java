@@ -166,16 +166,36 @@ private static void verifyTheResults(
 	
 }
 
-private static Automaton<String, String> createAutoMutualExclusion(){
-	Automaton<String, String> auto = new Automaton<>();
-	auto.setInitial("q0");
-	auto.setAccepting("q1");
-	createAutoMutualExclusionA(auto);
-	createAutoMutualExclusionB(auto);
-	createAutoMutualExclusionC(auto);
-	
-	return auto;
-}
+	private static Automaton<String, String> createAutoMutualExclusion(){
+		Automaton<String, String> auto = new Automaton<>();
+		auto.setInitial("q0");
+		auto.setAccepting("q1");
+		for(int i = 0; i < 2 ;i++){
+			for(int j = 0; j < 2 ; j++){
+				for(int k = 0; k < 2; k++)	{
+					for(int l = 0; l < 2 ; l++){
+						for(int m = 0; m <= 2; m++)	{ // x in {0, 1, 2}
+							Set<String> transitionLabels = new HashSet<>();
+							transitionLabels.add("crit1 = " + i);
+							transitionLabels.add("crit2 = " + j);
+							transitionLabels.add("b1 = " + k);
+							transitionLabels.add("b2 = " + l);
+							transitionLabels.add("x = " + m);
+							// remove labels of variables == 0 since ignored in the TS labels
+							transitionLabels.removeIf(label -> label.endsWith("0"));
+							auto.addTransition("q0", transitionLabels, "q0");
+							auto.addTransition("q1", transitionLabels, "q1");
+							if (transitionLabels.contains("crit1 = 1") && transitionLabels.contains("crit2 = 1"))
+							{// both processes are in the critical section -> apply transition to the accepting state of the automaton
+								auto.addTransition("q0", transitionLabels, "q1");
+							}
+						}
+					}
+				}
+			}
+		}
+		return auto;
+	}
 
 
 
