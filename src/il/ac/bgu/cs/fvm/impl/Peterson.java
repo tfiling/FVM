@@ -19,6 +19,10 @@ public class Peterson {
 
 	public static FvmFacade fvmFacade = FvmFacade.createInstance();
 
+	/**
+	 *	analyzes mutual exclusion and starvation freedom for the algorithm represented by the transition system
+	 * @param ts the transition system representing the algorithm implementation
+	 */
 	public static void analyzeAlgorithm(TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts)
 	{
 		filterUnwantedLabels(ts);
@@ -27,6 +31,10 @@ public class Peterson {
 
 	}
 
+	/**
+	 * filter labels that dont influence the analyzed features
+	 * @param ts the transition system representing the algorithm implementation
+	 */
 	public static void filterUnwantedLabels(TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts) {
 		List<Pair<Pair<String, String>, Map<String, Object>>>  allStates = new ArrayList<>(ts.getStates());
 
@@ -46,6 +54,10 @@ public class Peterson {
 		}
 	}
 
+	/**
+	 *
+	 * @return an automaton that accepts if both processes were in the critical section in the same time
+	 */
 	public static Automaton<String, String> createAutoMutualExclusion(){
 
 		System.out.println("creating an automaton that will accept when both processes are in the critical section");
@@ -83,6 +95,11 @@ public class Peterson {
 		return automaton;
 	}
 
+
+	/**
+	 * analyze the algorithm for mutual exclusion
+	 * @param ts the transition system representing the algorithm implementation
+	 */
 	private static void analyzeMutualExclusion(TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts)
 	{
 		VerificationResult<Pair<Pair<String,String>,Map<String,Object>>> verificationRes = fvmFacade.verifyAnOmegaRegularProperty(ts, createAutoMutualExclusion());
@@ -99,6 +116,10 @@ public class Peterson {
 
 	}
 
+	/**
+	 * analyze the algorithm for starvation freedom for both processes
+	 * @param ts the transition system representing the algorithm implementation
+	 */
 	public static void analyzeStarvationFreedom(TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts) {
 
 		VerificationResult<Pair<Pair<String,String>,Map<String,Object>>> verificationRes = fvmFacade.verifyAnOmegaRegularProperty(ts, createAutoStarvation(1));
@@ -123,6 +144,11 @@ public class Peterson {
 	}
 
 
+	/**
+	 *
+	 * @param processID
+	 * @return the automaton that accepts if the process with processID had an intention to get into the critical section but did not manage to get in
+	 */
 	public static Automaton<String, String> createAutoStarvation(int processID) {
 
 		System.out.println(String.format("creating an automaton that will accept if p%d is starved - " +
