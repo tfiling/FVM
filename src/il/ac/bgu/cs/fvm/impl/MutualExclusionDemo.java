@@ -47,21 +47,24 @@ public class MutualExclusionDemo {
 				"in slide #8, in the 8th lecture presentation");
 		System.out.println("nano promela description of the algorithm for process #1");
 		System.out.println(petersonP1);
-		System.out.println("---------------------------------------------------------------");
+		System.out.println("\n---------------------------------------------------------------\n");
 		System.out.println("nano promela description of the algorithm for process #2");
 		System.out.println(petersonP2);
+		System.out.println("\n---------------------------------------------------------------\n");
 
 		//create a fvm
 		FvmFacade fvmImpl = FvmFacade.createInstance();
 
 		//create 2 PG and then intreleave them
+		System.out.println("converting the nano promela descriptions of the algorithms into program graphs");
 		ProgramGraph<String, String> pg1 = fvmImpl.programGraphFromNanoPromelaString(petersonP1);
 		ProgramGraph<String, String> pg2 = fvmImpl.programGraphFromNanoPromelaString(petersonP2);
+		System.out.println("interleaving the program graphs");
 		ProgramGraph<Pair<String,String>, String> pg = fvmImpl.interleave(pg1, pg2);
-
 
 		Set<ActionDef> actDef = set(new ParserBasedActDef());
 		Set<ConditionDef> condDef = set(new ParserBasedCondDef());
+		System.out.println("converting program graph into a transition system");
 		TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts = fvmImpl.transitionSystemFromProgramGraph(pg, actDef, condDef);
 
 		Peterson.analyzeAlgorithm(ts);

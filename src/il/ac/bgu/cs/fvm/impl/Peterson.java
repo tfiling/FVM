@@ -48,11 +48,14 @@ public class Peterson {
 
 	public static Automaton<String, String> createAutoMutualExclusion(){
 
-		Automaton<String, String> auto = new Automaton<>();
+		System.out.println("creating an automaton that will accept when both processes are in the critical section");
+		Automaton<String, String> automaton = new Automaton<>();
 
-		auto.setInitial("q0");
-		auto.setAccepting("q1");
-		
+		System.out.println("q0 is the initial non accepting where up to one process is in the critical section");
+		automaton.setInitial("q0");
+		System.out.println("q1 is the accepting state where both processes are in the critical section");
+		automaton.setAccepting("q1");
+
 		for(int i = 0; i < 2 ;i++){
 			for(int j = 0; j < 2 ; j++){
 				for(int k = 0; k < 2; k++)	{
@@ -66,18 +69,18 @@ public class Peterson {
 							transitionLabels.add("x = " + m);
 							// remove labels of variables == 0 since ignored in the TS labels
 							transitionLabels.removeIf(label -> label.endsWith("0"));
-							auto.addTransition("q0", transitionLabels, "q0");
-							auto.addTransition("q1", transitionLabels, "q1");
+							automaton.addTransition("q0", transitionLabels, "q0");
+							automaton.addTransition("q1", transitionLabels, "q1");
 							if (transitionLabels.contains("crit1 = 1") && transitionLabels.contains("crit2 = 1"))
 							{// both processes are in the critical section -> apply transition to the accepting state of the automaton
-								auto.addTransition("q0", transitionLabels, "q1");
+								automaton.addTransition("q0", transitionLabels, "q1");
 							}
 						}
 					}
 				}
 			}
 		}
-		return auto;
+		return automaton;
 	}
 
 	private static void analyzeMutualExclusion(TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts)
@@ -92,25 +95,29 @@ public class Peterson {
 			System.out.println("a possible scenario leading both processes in the critical section in the same time:");
 			System.out.println(verificationRes);
 		}
+		System.out.println("\n------------------------------------------------------------\n");
 
 	}
 
 	public static void analyzeStarvationFreedom(TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts) {
 
-		VerificationResult<Pair<Pair<String,String>,Map<String,Object>>> verificationRes2 = fvmFacade.verifyAnOmegaRegularProperty(ts, createAutoStarvation(1));
-		if(verificationRes2 instanceof VerificationSucceeded){
-			System.out.println("The is starvation freedom property - P1 . YES BABY!!! ");
-		}else if(verificationRes2 instanceof VerificationFailed){
-			System.out.println("Its not a starvation for P1!! \n for example:");
-			System.out.println(verificationRes2);
+		VerificationResult<Pair<Pair<String,String>,Map<String,Object>>> verificationRes = fvmFacade.verifyAnOmegaRegularProperty(ts, createAutoStarvation(1));
+		if(verificationRes instanceof VerificationSucceeded){
+			System.out.println("the analyzed algorithm holds starvation freedom for p1");
+		}else if(verificationRes instanceof VerificationFailed){
+			System.out.println("the analyzed algorithm DOES NOT hold starvation freedom for p1");
+			System.out.println("a possible scenario leading p1 into starvation:");
+			System.out.println(verificationRes);
 		}
+		System.out.println("\n---------------------------------------------\n");
 
-		VerificationResult<Pair<Pair<String,String>,Map<String,Object>>> verificationRes3 = fvmFacade.verifyAnOmegaRegularProperty(ts, createAutoStarvation(2));
-		if(verificationRes3 instanceof VerificationSucceeded){
-			System.out.println("The is starvation freedom property - P2 . YES BABY!!!");
-		}else if(verificationRes3 instanceof VerificationFailed){
-			System.out.println("Its not a starvation for P2!! \n for example:");
-			System.out.println(verificationRes3);
+		verificationRes = fvmFacade.verifyAnOmegaRegularProperty(ts, createAutoStarvation(2));
+		if(verificationRes instanceof VerificationSucceeded){
+			System.out.println("the analyzed algorithm holds starvation freedom for p2");
+		}else if(verificationRes instanceof VerificationFailed){
+			System.out.println("the analyzed algorithm DOES NOT hold starvation freedom for p2");
+			System.out.println("a possible scenario leading p2 into starvation:");
+			System.out.println(verificationRes);
 		}
 
 	}
@@ -118,10 +125,15 @@ public class Peterson {
 
 	public static Automaton<String, String> createAutoStarvation(int processID) {
 
-		Automaton<String, String> auto = new Automaton<>();
-		auto.setInitial("q0"); // initial state
-		auto.setAccepting("q1"); // p1 waits for the critical section
-		auto.addState("q2"); // p1 entered the critical section
+		System.out.println(String.format("creating an automaton that will accept if p%d is starved - " +
+				"waiting for the critical section but not getting in", processID));
+		Automaton<String, String> automaton = new Automaton<>();
+		System.out.println(String.format("q0 is the initial state where p%d still didn't wait for the critical section", processID));
+		automaton.setInitial("q0"); // initial state
+		System.out.println(String.format("q1 is the accepting state where p%d waits for the critical section", processID));
+		automaton.setAccepting("q1"); // pi waits for the critical section
+		System.out.println(String.format("q2 is the non-accepting state where p%d entered the critical section", processID));
+		automaton.addState("q2"); // pi entered the critical section
 
 		for(int i = 0 ; i<2 ;i++){
 			for(int j=0 ; j<2 ; j++){
@@ -138,19 +150,19 @@ public class Peterson {
 
 							if (transitionLabels.contains(String.format("b%d = 1", processID)) && !transitionLabels.contains(String.format("crit%d = 1", processID)))
 							{//the transition is made when pi waits for the critical section but still didn't get into the critical section
-								auto.addTransition("q0", transitionLabels, "q1");
+								automaton.addTransition("q0", transitionLabels, "q1");
 							}
 							if (transitionLabels.contains(String.format("crit%d = 1", processID)))
 							{//pi entered the critical section hence has not starvation, move from the accepting state to the non accepting state
-								auto.addTransition("q1", transitionLabels, "q2");
+								automaton.addTransition("q1", transitionLabels, "q2");
 							}
-							auto.addTransition("q2",transitionLabels, "q2");
+							automaton.addTransition("q2",transitionLabels, "q2");
 						}
 					}
 				}
 			}
 		}
-		return auto;
+		return automaton;
 	}
 
 }
