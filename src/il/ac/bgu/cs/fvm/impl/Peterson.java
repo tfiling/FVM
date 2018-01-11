@@ -47,9 +47,12 @@ public class Peterson {
 	}
 
 	public static Automaton<String, String> createAutoMutualExclusion(){
+
 		Automaton<String, String> auto = new Automaton<>();
+
 		auto.setInitial("q0");
 		auto.setAccepting("q1");
+		
 		for(int i = 0; i < 2 ;i++){
 			for(int j = 0; j < 2 ; j++){
 				for(int k = 0; k < 2; k++)	{
@@ -94,7 +97,7 @@ public class Peterson {
 
 	public static void analyzeStarvationFreedom(TransitionSystem<Pair<Pair<String, String>, Map<String, Object>>, String, String> ts) {
 
-		VerificationResult<Pair<Pair<String,String>,Map<String,Object>>> verificationRes2 = fvmFacade.verifyAnOmegaRegularProperty(ts, createAutoStarvation1());
+		VerificationResult<Pair<Pair<String,String>,Map<String,Object>>> verificationRes2 = fvmFacade.verifyAnOmegaRegularProperty(ts, createAutoStarvation(1));
 		if(verificationRes2 instanceof VerificationSucceeded){
 			System.out.println("The is starvation freedom property - P1 . YES BABY!!! ");
 		}else if(verificationRes2 instanceof VerificationFailed){
@@ -102,7 +105,7 @@ public class Peterson {
 			System.out.println(verificationRes2);
 		}
 
-		VerificationResult<Pair<Pair<String,String>,Map<String,Object>>> verificationRes3 = fvmFacade.verifyAnOmegaRegularProperty(ts, createAutoStarvation2());
+		VerificationResult<Pair<Pair<String,String>,Map<String,Object>>> verificationRes3 = fvmFacade.verifyAnOmegaRegularProperty(ts, createAutoStarvation(2));
 		if(verificationRes3 instanceof VerificationSucceeded){
 			System.out.println("The is starvation freedom property - P2 . YES BABY!!!");
 		}else if(verificationRes3 instanceof VerificationFailed){
@@ -113,241 +116,41 @@ public class Peterson {
 	}
 
 
+	public static Automaton<String, String> createAutoStarvation(int processID) {
 
-	public static Automaton<String, String> createAutoStarvation1(){
 		Automaton<String, String> auto = new Automaton<>();
-		auto.setInitial("q0");
-		auto.setAccepting("q1");
-		auto.addState("q2");
-		createAutoStarvation1A(auto);
-		createAutoStarvation1B(auto);
-		createAutoStarvation1C(auto);
+		auto.setInitial("q0"); // initial state
+		auto.setAccepting("q1"); // p1 waits for the critical section
+		auto.addState("q2"); // p1 entered the critical section
 
+		for(int i = 0 ; i<2 ;i++){
+			for(int j=0 ; j<2 ; j++){
+				for(int k=0;k<2;k++){
+					for(int l=0;l<2;l++){
+						Set<String> transitionLabels = new HashSet<>();
+						if(!(i==1 && k==0)){
+							transitionLabels.add("crit1 = " + i);
+							transitionLabels.add("crit2 = " + j);
+							transitionLabels.add("b1 = " + k);
+							transitionLabels.add("b2 = " + l);
+
+							transitionLabels.removeIf(label -> label.endsWith("0"));
+
+							if (transitionLabels.contains(String.format("b%d = 1", processID)) && !transitionLabels.contains(String.format("crit%d = 1", processID)))
+							{//the transition is made when pi waits for the critical section but still didn't get into the critical section
+								auto.addTransition("q0", transitionLabels, "q1");
+							}
+							if (transitionLabels.contains(String.format("crit%d = 1", processID)))
+							{//pi entered the critical section hence has not starvation, move from the accepting state to the non accepting state
+								auto.addTransition("q1", transitionLabels, "q2");
+							}
+							auto.addTransition("q2",transitionLabels, "q2");
+						}
+					}
+				}
+			}
+		}
 		return auto;
 	}
-
-
-
-	public static Automaton<String, String> createAutoStarvation2(){
-		Automaton<String, String> auto = new Automaton<>();
-		auto.setInitial("q0");
-		auto.setAccepting("q1");
-		auto.addState("q2");
-		createAutoStarvation2A(auto);
-		createAutoStarvation2B(auto);
-		createAutoStarvation2C(auto);
-
-		return auto;
-	}
-
-
-
-
-	/*///////////////////////////////////////////
-	 * ////////////////Helpers//////////////
-	 *//////////////////////////////////////////
-
-	public static void createAutoStarvation1C(Automaton<String, String> auto) {
-		for(int i = 0 ; i<2 ;i++){
-			for(int j=0 ; j<2 ; j++){
-				for(int k=0;k<2;k++){
-					for(int m=0;m<2;m++){
-						Set<String> t = new HashSet<>();
-						Set<String> t2 = new HashSet<>();
-						t.add("crit1 = "+k);
-						t.add("crit2 = "+m);
-						t.add("b1 = "+i);
-						t.add("b2 = "+j);
-						for(String ss : t){
-							if(!ss.endsWith("0"))
-								t2.add(ss);
-						}
-						auto.addTransition("q2",t2, "q2");
-						auto.addTransition("q0",new HashSet<>(t2), "q0");
-					}
-				}
-			}
-		}
-
-	}
-
-	public static void createAutoStarvation1B(Automaton<String, String> auto) {
-		for(int i = 0 ; i<2 ;i++){
-			for(int j=0 ; j<2 ; j++){
-				for(int k=0;k<2;k++){
-					for(int m=0;m<2;m++){
-						Set<String> t = new HashSet<>();
-						Set<String> t2 = new HashSet<>();
-						if(!(i==1 && k==0)){
-							t.add("crit1 = "+k);
-							t.add("crit2 = "+m);
-							t.add("b1 = "+i);
-							t.add("b2 = "+j);
-							for(String ss : t){
-								if(!ss.endsWith("0"))
-									t2.add(ss);
-							}
-							auto.addTransition("q1",t2, "q2");
-						}
-					}
-				}
-			}
-		}
-
-	}
-
-	public static void createAutoStarvation1A(Automaton<String, String> auto) {
-		for(int i = 0 ; i<2 ;i++){
-			for(int j=0 ; j<2 ; j++){
-				Set<String> t = new HashSet<>();
-				Set<String> t2 = new HashSet<>();
-				t.add("crit2 = "+i);
-				t.add("b1 = 1");
-				t.add("b2 = "+j);
-				for(String ss : t){
-					if(!ss.endsWith("0"))
-						t2.add(ss);
-				}
-				auto.addTransition("q0",t2, "q1");
-				auto.addTransition("q1",new HashSet<>(t2), "q1");
-			}
-		}
-	}
-
-	public static void createAutoMutualExclusionA(Automaton<String, String> auto) {
-		for(int i = 0 ; i<2 ;i++){
-			for(int j=0 ; j<2 ; j++){
-				Set<String> t = new HashSet<>();
-				Set<String> t2 = new HashSet<>();
-				t.add("crit1 = 1");
-				t.add("crit2 = 1");
-				t.add("b1 = "+i);
-				t.add("b2 = "+j);
-				for(String ss : t){
-					if(!ss.endsWith("0"))
-						t2.add(ss);
-				}
-				auto.addTransition("q0",t2, "q1");
-			}
-		}
-
-	}
-
-	public static void createAutoMutualExclusionB(Automaton<String, String> auto) {
-		for(int i = 0 ; i<2 ;i++){
-			for(int j=0 ; j<2 ; j++){
-				for(int k=0;k<2;k++){
-					for(int m=0;m<2;m++){
-						Set<String> t = new HashSet<>();
-						Set<String> t2 = new HashSet<>();
-						if(k+m<2){
-							t.add("crit1 = "+k);
-							t.add("crit2 = "+m);
-							t.add("b1 = "+i);
-							t.add("b2 = "+j);
-							for(String ss : t){
-								if(!ss.endsWith("0"))
-									t2.add(ss);
-							}
-							auto.addTransition("q0",t2, "q0");
-						}
-					}
-				}
-			}
-		}
-
-	}
-
-	public static void createAutoMutualExclusionC(Automaton<String, String> auto) {
-		for(int i = 0 ; i<2 ;i++){
-			for(int j=0 ; j<2 ; j++){
-				for(int k=0;k<2;k++){
-					for(int m=0;m<2;m++){
-						Set<String> t = new HashSet<>();
-						Set<String> t2 = new HashSet<>();
-						t.add("crit1 = "+k);
-						t.add("crit2 = "+m);
-						t.add("b1 = "+i);
-						t.add("b2 = "+j);
-						for(String ss : t){
-							if(!ss.endsWith("0"))
-								t2.add(ss);
-						}
-						auto.addTransition("q1",t2, "q1");
-					}
-				}
-			}
-		}
-	}
-
-
-	public static void createAutoStarvation2A(Automaton<String, String> auto) {
-		for(int i = 0 ; i<2 ;i++){
-			for(int j=0 ; j<2 ; j++){
-				Set<String> t = new HashSet<>();
-				Set<String> t2 = new HashSet<>();
-				t.add("crit1 = "+i);
-				t.add("b2 = 1");
-				t.add("b1 = "+j);
-				for(String ss : t){
-					if(!ss.endsWith("0"))
-						t2.add(ss);
-				}
-				auto.addTransition("q0",t2, "q1");
-				auto.addTransition("q1",new HashSet<>(t2), "q1");
-			}
-		}
-
-	}
-
-	public static void createAutoStarvation2B(Automaton<String, String> auto) {
-		for(int i = 0 ; i<2 ;i++){
-			for(int j=0 ; j<2 ; j++){
-				for(int k=0;k<2;k++){
-					for(int m=0;m<2;m++){
-						Set<String> t = new HashSet<>();
-						Set<String> t2 = new HashSet<>();
-						if(!(i==1 && k==0)){
-							t.add("crit2 = "+k);
-							t.add("crit1 = "+m);
-							t.add("b2 = "+i);
-							t.add("b1 = "+j);
-							for(String str : t){
-								if(!str.endsWith("0"))
-									t2.add(str);
-							}
-							auto.addTransition("q1",t2, "q2");
-						}
-					}
-				}
-			}
-		}
-
-	}
-
-	public static void createAutoStarvation2C(Automaton<String, String> auto) {
-		for(int i = 0 ; i<2 ;i++){
-			for(int j=0 ; j<2 ; j++){
-				for(int k=0;k<2;k++){
-					for(int m=0;m<2;m++){
-						Set<String> t = new HashSet<>();
-						Set<String> t2 = new HashSet<>();
-						t.add("crit2 = "+k);
-						t.add("crit1 = "+m);
-						t.add("b2 = "+i);
-						t.add("b1 = "+j);
-						for(String str : t){
-							if(!str.endsWith("0"))
-								t2.add(str);
-						}
-						auto.addTransition("q2",t2, "q2");
-						auto.addTransition("q0",new HashSet<>(t2), "q0");
-					}
-				}
-			}
-		}
-
-	}
-
 
 }
