@@ -1550,10 +1550,18 @@ public class FvmFacadeImpl implements FvmFacade {
 		Automaton<Set<String>, L> automaton = new Automaton<>();
 
 
-		Set<Pair<LTL<L>, LTL<L>>> atomic = new HashSet<>();
-		scanLtl(ltl, atomic);
-
-		List<Pair<LTL<L>, LTL<L>>> atomics = new ArrayList<>(atomic);
+		Set<LTL<L>> subFormulas = extractAllSubFormulas(ltl);
+		ArrayList<Pair<LTL<L>, LTL<L>>> atomics = new ArrayList<>();
+		for (LTL subFormula : subFormulas)
+		{
+			atomics.add(p(subFormula, LTL.not(subFormula)));
+		}
+		List<Set<LTL<L>>> allPossibleStates = generateAllPossibleStates(atomics);
+		List<Set<LTL<L>>> formulas = filterInvalidStates(allPossibleStates);
+//		Set<Pair<LTL<L>, LTL<L>>> atomic = new HashSet<>();
+//		scanLtl(ltl, atomic);//generate all possible sub-particles of the LTL in pairs of <phi, not phi>
+//
+//		List<Pair<LTL<L>, LTL<L>>> atomics = new ArrayList<>(atomic);
 		Map<LTL<L>, Integer> mapUntils = new HashMap<>();
 		int colorNumber = 0;
 		for (Pair<LTL<L>, LTL<L>> a : atomics) {
@@ -1564,13 +1572,14 @@ public class FvmFacadeImpl implements FvmFacade {
 			}
 		}
 
-		List<Set<LTL<L>>> formulas = new ArrayList<>();
-		extractBaseFormulas(atomics, formulas);
+//		List<Set<LTL<L>>> formulas = new ArrayList<>();
+//		extractBaseFormulas(atomics, formulas);
 
 
 
 
 		// states
+
 		for (Set<LTL<L>> formula : formulas) {
 			Set<String> state = toSetLtl(formula);
 
@@ -1732,6 +1741,36 @@ public class FvmFacadeImpl implements FvmFacade {
 		}
 	}
 
+	private <L> Set<LTL<L>> extractAllSubFormulas(LTL<L> ltl)
+	{
+		Set<LTL<L>> result = new HashSet<>();
+		if (ltl instanceof And)
+		{
+			result.addAll(extractAllSubFormulas(((And) ltl).getLeft()));
+			result.addAll(extractAllSubFormulas(((And) ltl).getRight()));
+			result.add(ltl);
+		}
+		else if (ltl instanceof Until)
+		{
+			result.addAll(extractAllSubFormulas(((Until) ltl).getLeft()));
+			result.addAll(extractAllSubFormulas(((Until) ltl).getRight()));
+			result.add(ltl);
+		}
+		else if (ltl instanceof Not)
+		{//not will be added later as the negative form
+			result.addAll(extractAllSubFormulas(((Not) ltl).getInner()));
+		}
+		else if (ltl instanceof Next)
+		{
+			result.addAll(extractAllSubFormulas(((Next) ltl).getInner()));
+			result.add(ltl);
+		}
+		else
+		{//atomic formula
+			result.add(ltl);
+		}
+		return result;
+	}
 
 	private <L> void scanLtl(LTL<L> ltl, Set<Pair<LTL<L>, LTL<L>>> acc) {
 
@@ -1760,6 +1799,72 @@ public class FvmFacadeImpl implements FvmFacade {
 		}
 
 
+	}
+
+	private <L> List<Set<LTL<L>>> generateAllPossibleStates(ArrayList<Pair<LTL<L>, LTL<L>>> atomics)
+	{
+		List<Set<LTL<L>>> result = new ArrayList<>();
+		for (Pair<LTL<L>, LTL<L>> ltlPair : atomics)
+		{
+			if (result.size() == 0)
+			{
+				Set<LTL<L>> stateSet = new HashSet<>();
+				stateSet.add(atomics.get(0).getFirst());
+				result.add(stateSet);
+				stateSet = new HashSet<>();
+				stateSet.add(atomics.get(0).getSecond());
+				result.add(stateSet);
+			}
+			else
+			{
+				int originalSize = result.size();
+				for (int i = 0; i < originalSize; i++)
+				{
+					Set<LTL<L>> newState = new HashSet<>(result.get(i));
+					result.add(newState);
+				}
+				for (int i = 0; i < result.size() / 2; i++)
+				{
+					result.get(i).add(ltlPair.getFirst());
+				}
+				for (int i = result.size() / 2; i < result.size(); i++)
+				{
+					result.get(i).add(ltlPair.getSecond());
+				}
+			}
+		}
+		return result;
+	}
+
+	private <L> List<Set<LTL<L>>> filterInvalidStates(List<Set<LTL<L>>> allPossibleStates)
+	{
+		List<Set<LTL<L>>> result = new ArrayList<>(allPossibleStates);
+		for (Set<LTL<L>> state : allPossibleStates)
+		{
+			for (LTL<L> ltl : state)
+			{
+				if (ltl instanceof And)
+				{
+					if (!(state.contains(((And) ltl).getLeft()) && state.contains(((And) ltl).getRight())))
+					{
+						result.remove(state);
+					}
+				}
+				else if (ltl.equals(LTL.not(new TRUE<>())))
+				{
+					result.remove(state);
+				}
+				else if (ltl instanceof Until)
+				{
+					if (!state.contains(((Until) ltl).getRight()) &&
+							!state.contains(((Until) ltl).getLeft()))
+					{
+						result.remove(state);
+					}
+				}
+			}
+		}
+		return result;
 	}
 
 	@Override
