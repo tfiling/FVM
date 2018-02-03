@@ -24,6 +24,7 @@ import il.ac.bgu.cs.fvm.util.Pair;
 import il.ac.bgu.cs.fvm.verification.VerificationResult;
 import il.ac.bgu.cs.fvm.verification.VerificationFailed;
 import il.ac.bgu.cs.fvm.verification.VerificationSucceeded;
+import il.ac.bgu.cs.fvm.ltl.*;
 import static il.ac.bgu.cs.fvm.util.CollectionHelper.p;
 
 import java.io.InputStream;
@@ -1546,11 +1547,279 @@ public class FvmFacadeImpl implements FvmFacade {
 
 	@Override
 	public <L> Automaton<?, L> LTL2NBA(LTL<L> ltl) {
-		throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement LTL2NBA
+		Automaton<Set<String>, L> automaton = new Automaton<>();
+
+
+		Set<Pair<LTL<L>, LTL<L>>> atomic = new HashSet<>();
+		scanLtl(ltl, atomic);
+
+		List<Pair<LTL<L>, LTL<L>>> atomics = new ArrayList<>(atomic);
+		Map<LTL<L>, Integer> mapUntils = new HashMap<>();
+		int colorNumber = 0;
+		for (Pair<LTL<L>, LTL<L>> a : atomics) {
+			if (a.getFirst() instanceof Until) {
+				mapUntils.put(a.getFirst(), colorNumber);
+				mapUntils.put(a.getSecond(), colorNumber);
+				colorNumber++;
+			}
+		}
+
+		List<Set<LTL<L>>> formulas = new ArrayList<>();
+		extractBaseFormulas(atomics, formulas);
+
+
+
+
+		// states
+		for (Set<LTL<L>> formula : formulas) {
+			Set<String> state = toSetLtl(formula);
+
+			automaton.addState(state);
+
+			if (mapUntils.size() > 0) {
+				for (LTL<L> l : formula) {
+					if (l instanceof Until && formula.contains(((Until) l).getRight())
+							|| l instanceof Not && ((Not) l).getInner() instanceof Until) {
+						automaton.setAccepting(state, mapUntils.get(l));
+					}
+				}
+
+			} else {
+				automaton.setAccepting(state);
+			}
+
+			if (formula.contains(ltl)) {
+				automaton.setInitial(state);
+			}
+		}
+
+		// transitions
+		for (Set<LTL<L>> formula : formulas) {
+
+			Set<String> state = toSetLtl(formula);
+
+			Set<L> aps = new HashSet<>();
+			List<LTL<L>> nextAP = new ArrayList<>();
+			boolean stateWithUntil = false;
+
+			for (LTL<L> l : formula) {
+				if (!stateWithUntil && (l instanceof Until
+						|| l instanceof Not && ((Not) l).getInner() instanceof Until)) {
+					stateWithUntil = true;
+				} else {
+					if (l instanceof Next) {
+						nextAP.add(((Next) l).getInner());
+					} else if (l instanceof Not && ((Not) l).getInner() instanceof Next) {
+						nextAP.add(LTL.not(((Next) (((Not) l).getInner())).getInner()));
+					}
+				}
+
+				if (l instanceof AP) {
+					aps.add((L) ((AP) l).getName());
+				}
+			}
+
+			for (Set<LTL<L>> nextFormula : formulas) {
+
+				boolean shouldAddTransition = true;
+				for (LTL<L> l : nextAP) {
+					if (!nextFormula.contains(l)) {
+						shouldAddTransition = false;
+						break;
+					}
+				}
+
+
+				for (LTL<L> l : formula) {
+					if (l instanceof Until) {
+						if (!formula.contains(((Until) l).getRight())
+								&& (!formula.contains(((Until) l).getLeft()) || !nextFormula.contains(l))) {
+							shouldAddTransition = false;
+							break;
+						}
+					} else if (l instanceof Not && ((Not) l).getInner() instanceof Until) {
+						if (formula.contains(((Until) ((Not) l).getInner()).getRight())
+								|| (formula.contains(((Until) ((Not) l).getInner()).getLeft()) && nextFormula.contains(((Not) l).getInner()))) {
+							shouldAddTransition = false;
+							break;
+						}
+					}
+
+
+				}
+
+
+				if (shouldAddTransition) {
+					automaton.addTransition(state, aps, toSetLtl(nextFormula));
+				}
+			}
+
+		}
+
+		return GNBA2NBA(automaton);
 	}
+
+	private <L> Set<String> toSetLtl(Set<LTL<L>> ltls) {
+		Set<String> result = new HashSet<>();
+
+		for (LTL<L> ltl : ltls) {
+			result.add(ltl.toString());
+		}
+		return result;
+	}
+
+
+	private <L> void extractBaseFormulas(List<Pair<LTL<L>, LTL<L>>> atomics, List<Set<LTL<L>>> formulas) {
+		if (atomics.size() > 0) {
+
+			Pair<LTL<L>, LTL<L>> ltlPair = atomics.remove(0);
+
+			LTL<L> ltl = ltlPair.getFirst();
+			LTL<L> not_ltl = ltlPair.getSecond();
+
+			List<Set<LTL<L>>> newFormulas = new ArrayList<>();
+			if (formulas.size() > 0) {
+				for (Set<LTL<L>> formula : formulas) {
+
+					if (ltl instanceof And) {
+						if (formula.contains(((And) ltl).getLeft()) && formula.contains(((And) ltl).getRight())) {
+							formula.add(ltl);
+						} else {
+							formula.add(not_ltl);
+						}
+
+					} else if (ltl instanceof Until) {
+
+						if (formula.contains(((Until) ltl).getRight())) {
+							formula.add(ltl);
+						} else if (!formula.contains(((Until) ltl).getRight())
+								&& formula.contains(((Until) ltl).getLeft())) {
+
+
+							Set<LTL<L>> notFormula = new HashSet<LTL<L>>(formula);
+							notFormula.add(not_ltl);
+							newFormulas.add(notFormula);
+							formula.add(ltl);
+
+						} else {
+
+							formula.add(not_ltl);
+						}
+
+
+					} else if (ltl instanceof TRUE) {
+						formula.add(ltl);
+					} else {
+						Set<LTL<L>> notFormula = new HashSet<LTL<L>>(formula);
+						notFormula.add(not_ltl);
+						newFormulas.add(notFormula);
+
+						formula.add(ltl);
+					}
+				}
+			} else {
+				Set<LTL<L>> formula = new HashSet<LTL<L>>();
+				formula.add(ltl);
+				formulas.add(formula);
+
+				Set<LTL<L>> notFormula = new HashSet<LTL<L>>();
+				notFormula.add(not_ltl);
+				formulas.add(notFormula);
+			}
+
+			formulas.addAll(newFormulas);
+			extractBaseFormulas(atomics, formulas);
+		}
+	}
+
+
+	private <L> void scanLtl(LTL<L> ltl, Set<Pair<LTL<L>, LTL<L>>> acc) {
+
+		if (ltl instanceof And) {
+			acc.add(p(ltl, LTL.not(ltl)));
+			scanLtl(((And) ltl).getLeft(), acc);
+			scanLtl(((And) ltl).getRight(), acc);
+
+		} else if (ltl instanceof Until) {
+			acc.add(p(ltl, LTL.not(ltl)));
+			scanLtl(((Until) ltl).getLeft(), acc);
+			scanLtl(((Until) ltl).getRight(), acc);
+
+		} else if (ltl instanceof Not) {
+			scanLtl(((Not) ltl).getInner(), acc);
+
+		} else if (ltl instanceof Next) {
+			acc.add(p(ltl, LTL.not(ltl)));
+			scanLtl(((Next) ltl).getInner(), acc);
+
+		} else if (ltl instanceof TRUE) {
+			acc.add(p(ltl, LTL.not(ltl)));
+		} else {
+			// AP
+			acc.add(p(ltl, LTL.not(ltl)));
+		}
+
+
+	}
+
 	@Override
 	public <L> Automaton<?, L> GNBA2NBA(MultiColorAutomaton<?, L> mulAut) {
-		throw new UnsupportedOperationException("Not supported yet."); // TODO: Implement GNBA2NBA
+		Automaton<Pair<Integer, Integer>, L> automaton = new Automaton<>();
+
+		List<Integer> colors = new ArrayList<>(mulAut.getColors());
+
+		Map<Object, Integer> stateMap = new HashMap<>();
+		{
+			int stateNumber = 0;
+			for (Map.Entry state : mulAut.getTransitions().entrySet()) {
+				stateMap.put(state.getKey(), stateNumber);
+				stateNumber++;
+			}
+		}
+
+		// Initials
+		for (Object state : mulAut.getInitialStates()) {
+			automaton.setInitial(p(stateMap.get(state), colors.get(0)));
+		}
+
+		// States
+		for (int i = 0; i < colors.size(); i++) {
+			Integer color = colors.get(i);
+
+			for (Map.Entry state : mulAut.getTransitions().entrySet()) {
+				automaton.addState(p(stateMap.get(state.getKey()), color));
+			}
+		}
+
+		// Accepting
+		for (Object state : mulAut.getAcceptingStates(colors.get(0))) {
+			automaton.setAccepting(p(stateMap.get(state), colors.get(0)));
+		}
+
+
+		for (int i = 0; i < colors.size(); i++) {
+			Integer color = colors.get(i);
+
+			List acceptingStates = new ArrayList(mulAut.getAcceptingStates(color));
+
+			for (Map.Entry state : mulAut.getTransitions().entrySet()) {
+
+				Integer nextColor = color;
+				if (acceptingStates.contains(state.getKey())) {
+					nextColor = colors.get((i + 1) % colors.size());
+				}
+
+
+				for (Map.Entry transition : ((Map<Set<L>, String>) state.getValue()).entrySet()) {
+					for (Object toState : (Set) transition.getValue()) {
+						automaton.addTransition(p(stateMap.get(state.getKey()), color), (Set<L>) transition.getKey(), p(stateMap.get(toState), nextColor));
+					}
+				}
+			}
+		}
+
+
+		return automaton;
 	}
 
 	// returns the states in I that are not in R
