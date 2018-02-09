@@ -1547,55 +1547,45 @@ public class FvmFacadeImpl implements FvmFacade {
 
 	@Override
 	public <L> Automaton<?, L> LTL2NBA(LTL<L> ltl) {
-		Automaton<Set<String>, L> automaton = new Automaton<>();
-
+		Automaton<Set<String>, L> GNBA = new Automaton<>();
 
 		Set<LTL<L>> subFormulas = extractAllSubFormulas(ltl);
-		ArrayList<Pair<LTL<L>, LTL<L>>> atomics = new ArrayList<>();
+		ArrayList<Pair<LTL<L>, LTL<L>>> subFormulaPairs = new ArrayList<>(); // contains all sub formulas as paris of phi and !phi
 		for (LTL subFormula : subFormulas)
 		{
-			atomics.add(p(subFormula, LTL.not(subFormula)));
+			subFormulaPairs.add(p(subFormula, LTL.not(subFormula)));
 		}
-		List<Set<LTL<L>>> allPossibleStates = generateAllPossibleStates(atomics);
+		List<Set<LTL<L>>> allPossibleStates = generateAllPossibleStates(subFormulaPairs);
 		List<Set<LTL<L>>> formulas = filterInvalidStates(allPossibleStates);
 
-		Map<Until<L>, Integer> mapUntils = new HashMap<>();
-		int colorNumber = 0;
-		for (Pair<LTL<L>, LTL<L>> a : atomics) {
-			if (a.getFirst() instanceof Until) {
-				mapUntils.put((Until)a.getFirst(), colorNumber);
-//				mapUntils.put(a.getSecond(), colorNumber);
-				colorNumber++;
-			}
-		}
+		Map<Until<L>, Integer> untilToAcceptColor = scanUtilFormulas(subFormulaPairs); // a map between an until sub formula and it's acceptance color
 
-		// states
-
+		// add states to the GNBA
 		for (Set<LTL<L>> formula : formulas) {
 			Set<String> stringFormula = formula
 					.stream()
 					.map(ltlSet -> ltlSet.toString())
 					.collect(Collectors.toSet());
 
+			GNBA.addState(stringFormula);
 
-			automaton.addState(stringFormula);
-
-			if (mapUntils.size() > 0) {
-				for (Until<L> until : mapUntils.keySet())
+			for (Until<L> until : untilToAcceptColor.keySet())
+			{
+				int color = untilToAcceptColor.get(until);
+				if (formula.contains(LTL.not(until)) ||
+						formula.contains(until.getRight()))
 				{
-					int color = mapUntils.get(until);
-					if (formula.contains(LTL.not(until)) ||
-							formula.contains(until.getRight()))
-					{
-						automaton.setAccepting(stringFormula, color);
-					}
+					GNBA.setAccepting(stringFormula, color);
 				}
-			} else {
-				automaton.setAccepting(stringFormula);
+			}
+
+			if (untilToAcceptColor.size() == 0)
+			{
+				GNBA.setAccepting(stringFormula);
 			}
 
 			if (formula.contains(ltl)) {
-				automaton.setInitial(stringFormula);
+				GNBA.setInitial(stringFormula);
 			}
 		}
 
@@ -1664,13 +1654,13 @@ public class FvmFacadeImpl implements FvmFacade {
 							.stream()
 							.map(ltlSet -> ltlSet.toString())
 							.collect(Collectors.toSet());
-					automaton.addTransition(state, aps, nextFormulaString);
+					GNBA.addTransition(state, aps, nextFormulaString);
 				}
 			}
 
 		}
 
-		return GNBA2NBA(automaton);
+		return GNBA2NBA(GNBA);
 	}
 
 	private <L> Set<LTL<L>> extractAllSubFormulas(LTL<L> ltl)
@@ -1765,6 +1755,19 @@ public class FvmFacadeImpl implements FvmFacade {
 						result.remove(state);
 					}
 				}
+			}
+		}
+		return result;
+	}
+
+	private <L> Map<Until<L>, Integer> scanUtilFormulas(ArrayList<Pair<LTL<L>, LTL<L>>> subFormulaPairs)
+	{
+		Map result = new HashMap<>();
+		int colorNumber = 0;
+		for (Pair<LTL<L>, LTL<L>> a : subFormulaPairs) {
+			if (a.getFirst() instanceof Until) {
+				result.put((Until)a.getFirst(), colorNumber);
+				colorNumber++;
 			}
 		}
 		return result;
