@@ -1558,10 +1558,7 @@ public class FvmFacadeImpl implements FvmFacade {
 		}
 		List<Set<LTL<L>>> allPossibleStates = generateAllPossibleStates(atomics);
 		List<Set<LTL<L>>> formulas = filterInvalidStates(allPossibleStates);
-//		Set<Pair<LTL<L>, LTL<L>>> atomic = new HashSet<>();
-//		scanLtl(ltl, atomic);//generate all possible sub-particles of the LTL in pairs of <phi, not phi>
-//
-//		List<Pair<LTL<L>, LTL<L>>> atomics = new ArrayList<>(atomic);
+
 		Map<LTL<L>, Integer> mapUntils = new HashMap<>();
 		int colorNumber = 0;
 		for (Pair<LTL<L>, LTL<L>> a : atomics) {
@@ -1572,16 +1569,14 @@ public class FvmFacadeImpl implements FvmFacade {
 			}
 		}
 
-//		List<Set<LTL<L>>> formulas = new ArrayList<>();
-//		extractBaseFormulas(atomics, formulas);
-
-
-
-
 		// states
 
 		for (Set<LTL<L>> formula : formulas) {
-			Set<String> state = toSetLtl(formula);
+			Set<String> state = formula
+							.stream()
+							.map(ltlSet -> ltlSet.toString())
+							.collect(Collectors.toSet());
+
 
 			automaton.addState(state);
 
@@ -1605,7 +1600,11 @@ public class FvmFacadeImpl implements FvmFacade {
 		// transitions
 		for (Set<LTL<L>> formula : formulas) {
 
-			Set<String> state = toSetLtl(formula);
+			Set<String> state = formula
+					.stream()
+					.map(ltlSet -> ltlSet.toString())
+					.collect(Collectors.toSet());
+
 
 			Set<L> aps = new HashSet<>();
 			List<LTL<L>> nextAP = new ArrayList<>();
@@ -1659,86 +1658,17 @@ public class FvmFacadeImpl implements FvmFacade {
 
 
 				if (shouldAddTransition) {
-					automaton.addTransition(state, aps, toSetLtl(nextFormula));
+					Set<String> nextFormulaString = nextFormula
+							.stream()
+							.map(ltlSet -> ltlSet.toString())
+							.collect(Collectors.toSet());
+					automaton.addTransition(state, aps, nextFormulaString);
 				}
 			}
 
 		}
 
 		return GNBA2NBA(automaton);
-	}
-
-	private <L> Set<String> toSetLtl(Set<LTL<L>> ltls) {
-		Set<String> result = new HashSet<>();
-
-		for (LTL<L> ltl : ltls) {
-			result.add(ltl.toString());
-		}
-		return result;
-	}
-
-
-	private <L> void extractBaseFormulas(List<Pair<LTL<L>, LTL<L>>> atomics, List<Set<LTL<L>>> formulas) {
-		if (atomics.size() > 0) {
-
-			Pair<LTL<L>, LTL<L>> ltlPair = atomics.remove(0);
-
-			LTL<L> ltl = ltlPair.getFirst();
-			LTL<L> not_ltl = ltlPair.getSecond();
-
-			List<Set<LTL<L>>> newFormulas = new ArrayList<>();
-			if (formulas.size() > 0) {
-				for (Set<LTL<L>> formula : formulas) {
-
-					if (ltl instanceof And) {
-						if (formula.contains(((And) ltl).getLeft()) && formula.contains(((And) ltl).getRight())) {
-							formula.add(ltl);
-						} else {
-							formula.add(not_ltl);
-						}
-
-					} else if (ltl instanceof Until) {
-
-						if (formula.contains(((Until) ltl).getRight())) {
-							formula.add(ltl);
-						} else if (!formula.contains(((Until) ltl).getRight())
-								&& formula.contains(((Until) ltl).getLeft())) {
-
-
-							Set<LTL<L>> notFormula = new HashSet<LTL<L>>(formula);
-							notFormula.add(not_ltl);
-							newFormulas.add(notFormula);
-							formula.add(ltl);
-
-						} else {
-
-							formula.add(not_ltl);
-						}
-
-
-					} else if (ltl instanceof TRUE) {
-						formula.add(ltl);
-					} else {
-						Set<LTL<L>> notFormula = new HashSet<LTL<L>>(formula);
-						notFormula.add(not_ltl);
-						newFormulas.add(notFormula);
-
-						formula.add(ltl);
-					}
-				}
-			} else {
-				Set<LTL<L>> formula = new HashSet<LTL<L>>();
-				formula.add(ltl);
-				formulas.add(formula);
-
-				Set<LTL<L>> notFormula = new HashSet<LTL<L>>();
-				notFormula.add(not_ltl);
-				formulas.add(notFormula);
-			}
-
-			formulas.addAll(newFormulas);
-			extractBaseFormulas(atomics, formulas);
-		}
 	}
 
 	private <L> Set<LTL<L>> extractAllSubFormulas(LTL<L> ltl)
@@ -1770,35 +1700,6 @@ public class FvmFacadeImpl implements FvmFacade {
 			result.add(ltl);
 		}
 		return result;
-	}
-
-	private <L> void scanLtl(LTL<L> ltl, Set<Pair<LTL<L>, LTL<L>>> acc) {
-
-		if (ltl instanceof And) {
-			acc.add(p(ltl, LTL.not(ltl)));
-			scanLtl(((And) ltl).getLeft(), acc);
-			scanLtl(((And) ltl).getRight(), acc);
-
-		} else if (ltl instanceof Until) {
-			acc.add(p(ltl, LTL.not(ltl)));
-			scanLtl(((Until) ltl).getLeft(), acc);
-			scanLtl(((Until) ltl).getRight(), acc);
-
-		} else if (ltl instanceof Not) {
-			scanLtl(((Not) ltl).getInner(), acc);
-
-		} else if (ltl instanceof Next) {
-			acc.add(p(ltl, LTL.not(ltl)));
-			scanLtl(((Next) ltl).getInner(), acc);
-
-		} else if (ltl instanceof TRUE) {
-			acc.add(p(ltl, LTL.not(ltl)));
-		} else {
-			// AP
-			acc.add(p(ltl, LTL.not(ltl)));
-		}
-
-
 	}
 
 	private <L> List<Set<LTL<L>>> generateAllPossibleStates(ArrayList<Pair<LTL<L>, LTL<L>>> atomics)
