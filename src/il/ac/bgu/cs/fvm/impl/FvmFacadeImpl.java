@@ -1604,37 +1604,12 @@ public class FvmFacadeImpl implements FvmFacade {
 					.map(l -> new Not(l))
 					.collect(Collectors.toList()));
 
-			for (Set<LTL<L>> nextFormula : states) {
+			for (Set<LTL<L>> nextFormula : states)
+			{
 
-				boolean shouldAddTransition = true;
-				for (LTL<L> l : nextAP) {
-					if (!nextFormula.contains(l)) {
-						shouldAddTransition = false;
-						break;
-					}
-				}
-
-
-				for (LTL<L> l : currentInspectedState) {
-					if (l instanceof Until) {
-						if (!currentInspectedState.contains(((Until) l).getRight())
-								&& (!currentInspectedState.contains(((Until) l).getLeft()) || !nextFormula.contains(l))) {
-							shouldAddTransition = false;
-							break;
-						}
-					} else if (l instanceof Not && ((Not) l).getInner() instanceof Until) {
-						if (currentInspectedState.contains(((Until) ((Not) l).getInner()).getRight())
-								|| (currentInspectedState.contains(((Until) ((Not) l).getInner()).getLeft()) && nextFormula.contains(((Not) l).getInner()))) {
-							shouldAddTransition = false;
-							break;
-						}
-					}
-
-
-				}
-
-
-				if (shouldAddTransition) {
+				if (nextFormula.containsAll(nextAP) &&
+						formulaHoldsUntilRule(currentInspectedState, nextFormula))
+				{
 					Set<String> nextFormulaString = nextFormula
 							.stream()
 							.map(ltlSet -> ltlSet.toString())
@@ -1763,64 +1738,26 @@ public class FvmFacadeImpl implements FvmFacade {
 		return result;
 	}
 
+	private <L> boolean formulaHoldsUntilRule(Set<LTL<L>> currentInspectedState, Set<LTL<L>> nextFormula)
+	{
+		for (LTL<L> l : currentInspectedState) {
+			if (l instanceof Until) {
+				if (!currentInspectedState.contains(((Until) l).getRight())
+						&& (!currentInspectedState.contains(((Until) l).getLeft()) || !nextFormula.contains(l))) {
+					return false;
+				}
+			} else if (l instanceof Not && ((Not) l).getInner() instanceof Until) {
+				if (currentInspectedState.contains(((Until) ((Not) l).getInner()).getRight())
+						|| (currentInspectedState.contains(((Until) ((Not) l).getInner()).getLeft()) && nextFormula.contains(((Not) l).getInner()))) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
 	@Override
 	public <L> Automaton<?, L> GNBA2NBA(MultiColorAutomaton<?, L> mulAut) {
-//		Automaton<Pair<Integer, Integer>, L> automaton = new Automaton<>();
-//
-//		List<Integer> colors = new ArrayList<>(mulAut.getColors());
-//
-//		Map<Object, Integer> stateMap = new HashMap<>();
-//		{
-//			int stateNumber = 0;
-//			for (Map.Entry state : mulAut.getTransitions().entrySet()) {
-//				stateMap.put(state.getKey(), stateNumber);
-//				stateNumber++;
-//			}
-//		}
-//
-//		// Initials
-//		for (Object state : mulAut.getInitialStates()) {
-//			automaton.setInitial(p(stateMap.get(state), colors.get(0)));
-//		}
-//
-//		// States
-//		for (int i = 0; i < colors.size(); i++) {
-//			Integer color = colors.get(i);
-//
-//			for (Map.Entry state : mulAut.getTransitions().entrySet()) {
-//				automaton.addState(p(stateMap.get(state.getKey()), color));
-//			}
-//		}
-//
-//		// Accepting
-//		for (Object state : mulAut.getAcceptingStates(colors.get(0))) {
-//			automaton.setAccepting(p(stateMap.get(state), colors.get(0)));
-//		}
-//
-//
-//		for (int i = 0; i < colors.size(); i++) {
-//			Integer color = colors.get(i);
-//
-//			List acceptingStates = new ArrayList(mulAut.getAcceptingStates(color));
-//
-//			for (Map.Entry state : mulAut.getTransitions().entrySet()) {
-//
-//				Integer nextColor = color;
-//				if (acceptingStates.contains(state.getKey())) {
-//					nextColor = colors.get((i + 1) % colors.size());
-//				}
-//
-//
-//				for (Map.Entry transition : ((Map<Set<L>, String>) state.getValue()).entrySet()) {
-//					for (Object toState : (Set) transition.getValue()) {
-//						automaton.addTransition(p(stateMap.get(state.getKey()), color), (Set<L>) transition.getKey(), p(stateMap.get(toState), nextColor));
-//					}
-//				}
-//			}
-//		}
-//
-//
-//		return automaton;
 		Automaton<Object, L> aut = new Automaton<>();
 		Set<Integer> colors = mulAut.getColors();
 		Set<?> states = mulAut.getTransitions().keySet();
