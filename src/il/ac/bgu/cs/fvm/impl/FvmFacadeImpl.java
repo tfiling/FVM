@@ -28,15 +28,7 @@ import il.ac.bgu.cs.fvm.ltl.*;
 import static il.ac.bgu.cs.fvm.util.CollectionHelper.p;
 
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.Stack;
+import java.util.*;
 import java.util.stream.Collectors;
 
 
@@ -1556,70 +1548,63 @@ public class FvmFacadeImpl implements FvmFacade {
 			subFormulaPairs.add(p(subFormula, LTL.not(subFormula)));
 		}
 		List<Set<LTL<L>>> allPossibleStates = generateAllPossibleStates(subFormulaPairs);
-		List<Set<LTL<L>>> formulas = filterInvalidStates(allPossibleStates);
+		List<Set<LTL<L>>> states = filterInvalidStates(allPossibleStates);
 
 		Map<Until<L>, Integer> untilToAcceptColor = scanUtilFormulas(subFormulaPairs); // a map between an until sub formula and it's acceptance color
 
 		// add states to the GNBA
-		for (Set<LTL<L>> formula : formulas) {
-			Set<String> stringFormula = formula
+		for (Set<LTL<L>> currentInspectedState : states) {
+			Set<String> currentStateString = currentInspectedState
 					.stream()
 					.map(ltlSet -> ltlSet.toString())
 					.collect(Collectors.toSet());
 
-			GNBA.addState(stringFormula);
+			GNBA.addState(currentStateString);
 
 			for (Until<L> until : untilToAcceptColor.keySet())
 			{
 				int color = untilToAcceptColor.get(until);
-				if (formula.contains(LTL.not(until)) ||
-						formula.contains(until.getRight()))
+				if (currentInspectedState.contains(LTL.not(until)) ||
+						currentInspectedState.contains(until.getRight()))
 				{
-					GNBA.setAccepting(stringFormula, color);
+					GNBA.setAccepting(currentStateString, color);
 				}
 			}
 
 			if (untilToAcceptColor.size() == 0)
 			{
-				GNBA.setAccepting(stringFormula);
+				GNBA.setAccepting(currentStateString);
 			}
 
-			if (formula.contains(ltl)) {
-				GNBA.setInitial(stringFormula);
+			if (currentInspectedState.contains(ltl)) {
+				GNBA.setInitial(currentStateString);
 			}
 		}
 
-		// transitions
-		for (Set<LTL<L>> formula : formulas) {
+		// add all transitions to the GNBA
+		for (Set<LTL<L>> currentInspectedState : states) {
 
-			Set<String> state = formula
+			Set<String> currentStateString = currentInspectedState
 					.stream()
 					.map(ltlSet -> ltlSet.toString())
 					.collect(Collectors.toSet());
 
 
-			Set<L> aps = new HashSet<>();
-			List<LTL<L>> nextAP = new ArrayList<>();
-			boolean stateWithUntil = false;
+			List<LTL> nextAP = new ArrayList<>();
+			nextAP.addAll(currentInspectedState
+					.stream()
+					.filter(l -> l instanceof Next)
+					.map(l -> ((Next) l).getInner())
+					.collect(Collectors.toList()));
 
-			for (LTL<L> l : formula) {
-				if (!stateWithUntil && (l instanceof Until
-						|| l instanceof Not && ((Not) l).getInner() instanceof Until)) {
-					stateWithUntil = true;
-				} else {
-					if (l instanceof Next) {
-						nextAP.add(((Next) l).getInner());
-					} else if (l instanceof Not && ((Not) l).getInner() instanceof Next) {
-						nextAP.add(LTL.not(((Next) (((Not) l).getInner())).getInner()));
-					}
-				}
+			nextAP.addAll(currentInspectedState
+					.stream()
+					.filter(l -> l instanceof Not && ((Not) l).getInner() instanceof Next)
+					.map(l -> ((Next) (((Not) l).getInner())).getInner())
+					.map(l -> new Not(l))
+					.collect(Collectors.toList()));
 
-				if (l instanceof AP) {
-					aps.add((L) ((AP) l).getName());
-				}
-			}
-
-			for (Set<LTL<L>> nextFormula : formulas) {
+			for (Set<LTL<L>> nextFormula : states) {
 
 				boolean shouldAddTransition = true;
 				for (LTL<L> l : nextAP) {
@@ -1630,16 +1615,16 @@ public class FvmFacadeImpl implements FvmFacade {
 				}
 
 
-				for (LTL<L> l : formula) {
+				for (LTL<L> l : currentInspectedState) {
 					if (l instanceof Until) {
-						if (!formula.contains(((Until) l).getRight())
-								&& (!formula.contains(((Until) l).getLeft()) || !nextFormula.contains(l))) {
+						if (!currentInspectedState.contains(((Until) l).getRight())
+								&& (!currentInspectedState.contains(((Until) l).getLeft()) || !nextFormula.contains(l))) {
 							shouldAddTransition = false;
 							break;
 						}
 					} else if (l instanceof Not && ((Not) l).getInner() instanceof Until) {
-						if (formula.contains(((Until) ((Not) l).getInner()).getRight())
-								|| (formula.contains(((Until) ((Not) l).getInner()).getLeft()) && nextFormula.contains(((Not) l).getInner()))) {
+						if (currentInspectedState.contains(((Until) ((Not) l).getInner()).getRight())
+								|| (currentInspectedState.contains(((Until) ((Not) l).getInner()).getLeft()) && nextFormula.contains(((Not) l).getInner()))) {
 							shouldAddTransition = false;
 							break;
 						}
@@ -1654,7 +1639,12 @@ public class FvmFacadeImpl implements FvmFacade {
 							.stream()
 							.map(ltlSet -> ltlSet.toString())
 							.collect(Collectors.toSet());
-					GNBA.addTransition(state, aps, nextFormulaString);
+					Set<L> transitionOperationName = currentInspectedState
+							.stream()
+							.filter(l -> l instanceof AP)
+							.map(l -> (L)((AP)l).getName())
+							.collect(Collectors.toSet());
+					GNBA.addTransition(currentStateString, transitionOperationName, nextFormulaString);
 				}
 			}
 
