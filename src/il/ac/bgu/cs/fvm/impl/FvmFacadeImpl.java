@@ -1550,7 +1550,7 @@ public class FvmFacadeImpl implements FvmFacade {
 		List<Set<LTL<L>>> allPossibleStates = generateAllPossibleStates(subFormulaPairs);
 		List<Set<LTL<L>>> states = filterInvalidStates(allPossibleStates);
 
-		Map<Until<L>, Integer> untilToAcceptColor = scanUtilFormulas(subFormulaPairs); // a map between an until sub formula and it's acceptance color
+		Map<Until<L>, Integer> untilToAcceptColor = scanForUtilFormulas(subFormulaPairs); // a map between an until sub formula and it's acceptance color
 
 		// add states to the GNBA
 		for (Set<LTL<L>> currentInspectedState : states) {
@@ -1622,7 +1622,6 @@ public class FvmFacadeImpl implements FvmFacade {
 					GNBA.addTransition(currentStateString, transitionOperationName, nextFormulaString);
 				}
 			}
-
 		}
 
 		return GNBA2NBA(GNBA);
@@ -1659,19 +1658,19 @@ public class FvmFacadeImpl implements FvmFacade {
 		return result;
 	}
 
-	private <L> List<Set<LTL<L>>> generateAllPossibleStates(ArrayList<Pair<LTL<L>, LTL<L>>> atomics)
+	private <L> List<Set<LTL<L>>> generateAllPossibleStates(ArrayList<Pair<LTL<L>, LTL<L>>> subFormulas)
 	{
 		List<Set<LTL<L>>> result = new ArrayList<>();
-		for (Pair<LTL<L>, LTL<L>> ltlPair : atomics)
+		for (Pair<LTL<L>, LTL<L>> ltlPair : subFormulas)
 		{
 			if (result.size() == 0)
 			{
-				Set<LTL<L>> stateSet = new HashSet<>();
-				stateSet.add(atomics.get(0).getFirst());
-				result.add(stateSet);
-				stateSet = new HashSet<>();
-				stateSet.add(atomics.get(0).getSecond());
-				result.add(stateSet);
+				Set<LTL<L>> state = new HashSet<>();
+				state.add(subFormulas.get(0).getFirst());
+				result.add(state);
+				state = new HashSet<>();
+				state.add(subFormulas.get(0).getSecond());
+				result.add(state);
 			}
 			else
 			{
@@ -1725,7 +1724,7 @@ public class FvmFacadeImpl implements FvmFacade {
 		return result;
 	}
 
-	private <L> Map<Until<L>, Integer> scanUtilFormulas(ArrayList<Pair<LTL<L>, LTL<L>>> subFormulaPairs)
+	private <L> Map<Until<L>, Integer> scanForUtilFormulas(ArrayList<Pair<LTL<L>, LTL<L>>> subFormulaPairs)
 	{
 		Map result = new HashMap<>();
 		int colorNumber = 0;
@@ -1759,64 +1758,83 @@ public class FvmFacadeImpl implements FvmFacade {
 	@Override
 	public <L> Automaton<?, L> GNBA2NBA(MultiColorAutomaton<?, L> mulAut) {
 		Automaton<Object, L> aut = new Automaton<>();
-		Set<Integer> colors = mulAut.getColors();
+		Set<Integer> acceptanceColors = mulAut.getColors();
 		Set<?> states = mulAut.getTransitions().keySet();
 		Set<?> initialStates = mulAut.getInitialStates();
-		if(colors.isEmpty()){
-			for(Object state : states){
-				Pair<?,Integer> stateAut = new Pair<Object, Integer>(state, 0);
-				aut.addState(stateAut);
-				aut.setAccepting(stateAut);
-			}
-			for(Object initState : initialStates){
-				Pair<Object,Integer> stateAut = new Pair<Object,Integer>(initState, 0);
-				aut.setInitial(stateAut);
-			}
+		if(acceptanceColors.size() > 0)
+		{
+			initialStates
+					.stream()
+					.forEach( initialState -> {
+						Pair<?,Integer> state = new Pair<Object,Integer>(initialState, 0);
+						aut.setInitial(state);
+					});
 			for(Object state : states){
 				Set<Set<L>> symbols = mulAut.getTransitions().get(state).keySet();
 				for(Set<L> symbol : symbols){
-					Set<?> destinations = mulAut.getTransitions().get(state).get(symbol);
-					for(Object dest : destinations){
-						Pair<?,Integer> stateAut = new Pair<Object, Integer>(dest,0);
-						aut.addTransition( new Pair<Object,Integer>(state, 0), symbol, stateAut);
-					}
-				}
-			}
-		}
-		else{
-			int size = colors.size();
-			for(Object initState : initialStates){
-				Pair<?,Integer> stateAut = new Pair<Object,Integer>(initState, 0);
-				aut.setInitial(stateAut);
-			}
-			for(Object state : states){
-				Set<Set<L>> symbols = mulAut.getTransitions().get(state).keySet();
-				for(Set<L> symbol : symbols){
-					Set<?> destinations = mulAut.getTransitions().get(state).get(symbol);
+					Set<?> nextState = mulAut.getTransitions().get(state).get(symbol);
 					int i=-1;
-					for(Integer color : colors){
+					for(Integer color : acceptanceColors)
+					{
 						i++;
-						Set<?> accepting = mulAut.getAcceptingStates(color);
-						if(accepting.contains(state)){
+						final int currI = i;
+						Set<?> acceptingStates = mulAut.getAcceptingStates(color);
+						if(acceptingStates.contains(state)){
 							if(i==0){
 								aut.setAccepting(new Pair<Object,Integer>(state, i));
 							}
-							for(Object dest : destinations){
-								Pair<?,Integer> stateAut = new Pair<Object, Integer>(dest,(i+1)%size);
-								aut.addTransition( new Pair<Object,Integer>(state, i), symbol, stateAut);
-							}
-						} else{
-							for(Object dest : destinations){
-								Pair<?,Integer> stateAut = new Pair<Object, Integer>(dest,i);
-								aut.addTransition( new Pair<Object,Integer>(state, i), symbol, stateAut);
-							}
+							nextState
+									.stream()
+									.forEach(dest -> {
+										Pair<?,Integer> destState = new Pair<Object, Integer>(dest,(currI+1) % (acceptanceColors.size()));
+										aut.addTransition( new Pair<Object,Integer>(state, currI), symbol, destState);
+									});
+						} else
+						{
+							nextState
+									.stream()
+									.forEach(dest -> {
+										Pair<?,Integer> destState = new Pair<Object, Integer>(dest,currI);
+										aut.addTransition( new Pair<Object,Integer>(state, currI), symbol, destState);
+									});
 						}
 					}
 				}
 			}
 		}
+		else
+		{
+			states
+					.stream()
+					.forEach(state -> {
+						Pair<?,Integer> automatonState = new Pair<Object, Integer>(state, 0);
+						aut.addState(automatonState);
+						aut.setAccepting(automatonState);
+					});
+			initialStates
+					.stream()
+					.forEach(state -> {
+						Pair<Object,Integer> automatonState = new Pair<Object,Integer>(state, 0);
+						aut.setInitial(automatonState);
+					});
+
+			states
+					.stream()
+					.forEach(state -> {
+						Set<Set<L>> symbols = mulAut.getTransitions().get(state).keySet();
+						symbols
+								.stream()
+								.forEach(symbol -> {
+									Set<?> destStates = mulAut.getTransitions().get(state).get(symbol);
+									destStates
+											.stream()
+											.forEach(destState -> {
+												Pair<?,Integer> stateAut = new Pair<Object, Integer>(destState,0);
+												aut.addTransition( new Pair<Object,Integer>(state, 0), symbol, stateAut);
+											});
+								});
+					});
+		}
 		return aut;
 	}
-
-	// returns the states in I that are not in R
 }
